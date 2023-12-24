@@ -8,11 +8,12 @@ import (
 )
 
 type Server struct {
-	addr     string
-	rpc      *rpc.Server
+	addr string
+	rpc  *rpc.Server
+
 	listener net.Listener
-	closed   chan any
 	wg       sync.WaitGroup
+	closed   chan any
 }
 
 func NewServer(addr string) *Server {
@@ -23,17 +24,12 @@ func NewServer(addr string) *Server {
 	}
 }
 
-func (server *Server) Register(rcvr any) error {
-	return server.rpc.Register(rcvr)
-}
-
 func (server *Server) Serve() error {
 	var err error
 	server.listener, err = net.Listen("tcp", server.addr)
 	if err != nil {
 		return err
 	}
-
 	log.Printf("listening on %s", server.addr)
 
 	server.wg.Add(1)

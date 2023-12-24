@@ -1,7 +1,6 @@
 package net
 
 import (
-	"fmt"
 	"log"
 	"net/rpc"
 )
@@ -26,13 +25,6 @@ func (client *Client) Dial() error {
 
 	log.Printf("connected to %s", client.addr)
 	return nil
-}
-
-func (client *Client) Call(serviceMethod string, args any, reply any) error {
-	if client.rpc == nil {
-		return fmt.Errorf("rpc call (%s) on uninitialized connection %s", serviceMethod, client.addr)
-	}
-	return client.rpc.Call(serviceMethod, args, reply)
 }
 
 func (client *Client) Close() error {
