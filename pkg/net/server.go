@@ -32,28 +32,31 @@ func (server *Server) Serve() error {
 	}
 	log.Printf("listening on %s", server.addr)
 
-	server.wg.Add(1)
-	defer server.wg.Done()
-
-	for {
-		conn, err := server.listener.Accept()
-		if err != nil {
-			select {
-			case <-server.closed:
-				log.Printf("stop listening on %s", server.addr)
-				return nil
-			default:
-				return err
+	go func() {
+		server.wg.Add(1)
+		defer server.wg.Done()
+		for {
+			conn, err := server.listener.Accept()
+			if err != nil {
+				select {
+				case <-server.closed:
+					log.Printf("stop listening on %s", server.addr)
+					return
+				default:
+					return
+				}
 			}
+
+			go func() {
+				server.wg.Add(1)
+				defer server.wg.Done()
+
+				server.rpc.ServeConn(conn)
+			}()
 		}
+	}()
 
-		go func() {
-			server.wg.Add(1)
-			defer server.wg.Done()
-
-			server.rpc.ServeConn(conn)
-		}()
-	}
+	return nil
 }
 
 func (server *Server) Close() error {
