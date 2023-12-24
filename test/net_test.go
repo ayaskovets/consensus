@@ -9,11 +9,14 @@ import (
 
 func TestGracefulShutdown(t *testing.T) {
 	srv := net.NewServer(":10000")
-	go srv.Serve()
+	err := srv.Serve()
+	if err != nil {
+		t.Fatal(err)
+	}
 	time.Sleep(time.Millisecond * 100)
 
 	cln := net.NewClient(":10000")
-	err := cln.Dial()
+	err = cln.Dial()
 	if err != nil {
 		t.Log(err)
 		t.Fail()
@@ -27,7 +30,6 @@ func TestGracefulShutdown(t *testing.T) {
 
 	err = srv.Close()
 	if err != nil {
-		t.Log(err)
-		t.Fail()
+		t.Fatal(err)
 	}
 }
