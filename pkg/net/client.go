@@ -1,37 +1,46 @@
 package net
 
 import (
+	"fmt"
 	"log"
 	"net/rpc"
-	"sync"
 )
 
 type Client struct {
-	address string
-
-	mu  sync.Mutex
-	rpc *rpc.Client
+	addr string
+	rpc  *rpc.Client
 }
 
-func NewClient(address string) *Client {
+func NewClient(addr string) *Client {
 	return &Client{
-		address: address,
-		rpc:     nil,
+		addr: addr,
 	}
 }
 
 func (client *Client) Dial() error {
-	client.mu.Lock()
-
 	var err error
-	client.rpc, err = rpc.Dial("tcp", client.address)
+	client.rpc, err = rpc.Dial("tcp", client.addr)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
-	client.mu.Unlock()
+	log.Printf("connected to %s", client.addr)
+	return nil
+}
 
-	log.Printf("connected to %s", client.address)
+func (client *Client) Call(serviceMethod string, args any, reply any) error {
+	if client.rpc == nil {
+		return fmt.Errorf("rpc call (%s) on uninitialized connection %s", serviceMethod, client.addr)
+	}
+	return client.rpc.Call(serviceMethod, args, reply)
+}
 
+func (client *Client) Close() error {
+	err := client.rpc.Close()
+	if err != nil {
+		return err
+	}
+
+	log.Printf("disconnected from %s", client.addr)
 	return nil
 }

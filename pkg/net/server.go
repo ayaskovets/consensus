@@ -8,44 +8,61 @@ import (
 )
 
 type Server struct {
-	address string
-
-	mu  sync.Mutex
-	rpc *rpc.Server
+	addr     string
+	rpc      *rpc.Server
+	listener net.Listener
+	closed   chan any
+	wg       sync.WaitGroup
 }
 
-func NewServer(address string) *Server {
+func NewServer(addr string) *Server {
 	return &Server{
-		address: address,
-		rpc:     nil,
+		addr:   addr,
+		rpc:    rpc.NewServer(),
+		closed: make(chan any),
 	}
 }
 
-func (server *Server) Serve(rcvr any) {
-	server.mu.Lock()
+func (server *Server) Register(rcvr any) error {
+	return server.rpc.Register(rcvr)
+}
 
-	server.rpc = rpc.NewServer()
-	err := server.rpc.Register(&rcvr)
+func (server *Server) Serve() error {
+	var err error
+	server.listener, err = net.Listen("tcp", server.addr)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
-	ln, err := net.Listen("tcp", server.address)
-	if err != nil {
-		log.Fatal(err)
-	}
+	log.Printf("listening on %s", server.addr)
 
-	server.mu.Unlock()
-
-	log.Printf("listening on %s", server.address)
+	server.wg.Add(1)
+	defer server.wg.Done()
 
 	for {
-		conn, err := ln.Accept()
+		conn, err := server.listener.Accept()
 		if err != nil {
-			log.Fatal(err)
+			select {
+			case <-server.closed:
+				log.Printf("stop listening on %s", server.addr)
+				return nil
+			default:
+				return err
+			}
 		}
+
 		go func() {
+			server.wg.Add(1)
+			defer server.wg.Done()
+
 			server.rpc.ServeConn(conn)
 		}()
 	}
+}
+
+func (server *Server) Close() error {
+	close(server.closed)
+	err := server.listener.Close()
+	server.wg.Wait()
+	return err
 }
