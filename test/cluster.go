@@ -7,21 +7,17 @@ import (
 )
 
 type Cluster struct {
-	addrs []string
 	nodes []*node.Node
 }
 
-func NewCluster(addrs []string) Cluster {
+func NewCluster(nodes []*node.Node) Cluster {
 	return Cluster{
-		addrs: addrs,
-		nodes: make([]*node.Node, 0, len(addrs)),
+		nodes: nodes,
 	}
 }
 
 func (cluster *Cluster) Up() error {
-	for _, addr := range cluster.addrs {
-		node := node.NewNode(addr)
-		cluster.nodes = append(cluster.nodes, node)
+	for _, node := range cluster.nodes {
 		err := node.Up()
 		if err != nil {
 			return err
@@ -29,13 +25,9 @@ func (cluster *Cluster) Up() error {
 	}
 	time.Sleep(time.Millisecond * 100)
 
-	for i, node := range cluster.nodes {
-		for j, addr := range cluster.addrs {
-			if i == j {
-				continue
-			}
-
-			err := node.Connect(addr)
+	for _, node := range cluster.nodes {
+		for _, peer := range cluster.nodes {
+			err := node.Connect(peer.Addr())
 			if err != nil {
 				return err
 			}
@@ -46,13 +38,9 @@ func (cluster *Cluster) Up() error {
 }
 
 func (cluster *Cluster) Down() error {
-	for i, node := range cluster.nodes {
-		for j, addr := range cluster.addrs {
-			if i == j {
-				continue
-			}
-
-			err := node.Disconnect(addr)
+	for _, node := range cluster.nodes {
+		for _, peer := range cluster.nodes {
+			err := node.Disconnect(peer.Addr())
 			if err != nil {
 				return err
 			}
