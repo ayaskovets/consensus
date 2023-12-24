@@ -16,41 +16,6 @@ func NewNode(addr string) *Node {
 	}
 }
 
-func (node *Node) Call(addr string, serviceMethod string, args any, reply any) error {
-	return node.peers[addr].Call(serviceMethod, args, reply)
-}
-
-func (node *Node) Connect(addr string) error {
-	peer := node.peers[addr]
-	if peer != nil {
-		return nil
-	}
-
-	client := net.NewClient(addr)
-	err := client.Dial()
-	if err != nil {
-		return err
-	}
-
-	node.peers[addr] = client
-	return nil
-}
-
-func (node *Node) Disconnect(addr string) error {
-	peer := node.peers[addr]
-	if peer == nil {
-		return nil
-	}
-
-	err := peer.Close()
-	if err != nil {
-		return err
-	}
-
-	delete(node.peers, addr)
-	return nil
-}
-
 func (node *Node) Up() error {
 	return node.server.Serve()
 }
