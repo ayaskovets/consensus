@@ -7,6 +7,7 @@ import (
 	"sync"
 )
 
+// Wrapper for an RPC server
 type Server struct {
 	addr string
 	rpc  *rpc.Server
@@ -17,6 +18,8 @@ type Server struct {
 	closed   chan any
 }
 
+// Constructs a new server object
+// To start to accept incoming RPS calls, call Serve()
 func NewServer(addr string) *Server {
 	return &Server{
 		addr:   addr,
@@ -25,6 +28,8 @@ func NewServer(addr string) *Server {
 	}
 }
 
+// Starts to accept incoming RPS requests
+// Non-blocking
 func (server *Server) Serve() error {
 	server.mu.Lock()
 	defer server.mu.Unlock()
@@ -63,6 +68,7 @@ func (server *Server) Serve() error {
 	return nil
 }
 
+// Shuts down the RPC server
 func (server *Server) Close() error {
 	server.mu.Lock()
 	defer server.mu.Unlock()
