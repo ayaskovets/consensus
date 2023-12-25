@@ -11,6 +11,7 @@ type Server struct {
 	addr string
 	rpc  *rpc.Server
 
+	mu       sync.Mutex
 	listener net.Listener
 	wg       sync.WaitGroup
 	closed   chan any
@@ -25,6 +26,9 @@ func NewServer(addr string) *Server {
 }
 
 func (server *Server) Serve() error {
+	server.mu.Lock()
+	defer server.mu.Unlock()
+
 	var err error
 	server.listener, err = net.Listen("tcp", server.addr)
 	if err != nil {
@@ -60,6 +64,9 @@ func (server *Server) Serve() error {
 }
 
 func (server *Server) Close() error {
+	server.mu.Lock()
+	defer server.mu.Unlock()
+
 	close(server.closed)
 	err := server.listener.Close()
 	server.wg.Wait()
