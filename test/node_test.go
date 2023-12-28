@@ -7,11 +7,11 @@ import (
 )
 
 func TestNodesConnectivity(t *testing.T) {
-	cluster := NewCluster([]*node.Node{
+	cluster := Cluster{Nodes: []*node.Node{
 		node.NewNode(":10001"),
 		node.NewNode(":10002"),
 		node.NewNode(":10003"),
-	})
+	}}
 
 	if err := cluster.Up(); err != nil {
 		t.Log(err)

@@ -7,27 +7,20 @@ import (
 // Wrapper for a set of nodes
 // All nodes are expected to be hosted on localhost
 type Cluster struct {
-	nodes []*node.Node
-}
-
-// Constructs a cluster from a set of nodes
-func NewCluster(nodes []*node.Node) Cluster {
-	return Cluster{
-		nodes: nodes,
-	}
+	Nodes []*node.Node
 }
 
 // Starts up the cluster and connects nodes to each other
 // Blocking
 func (cluster *Cluster) Up() error {
-	for _, node := range cluster.nodes {
+	for _, node := range cluster.Nodes {
 		if err := node.Up(); err != nil {
 			return err
 		}
 	}
 
-	for i, node := range cluster.nodes {
-		for j, peer := range cluster.nodes {
+	for i, node := range cluster.Nodes {
+		for j, peer := range cluster.Nodes {
 			if i == j {
 				continue
 			}
@@ -43,8 +36,8 @@ func (cluster *Cluster) Up() error {
 
 // Shuts down the cluster disconnecting all nodes and stopping RPC servers
 func (cluster *Cluster) Down() error {
-	for i, node := range cluster.nodes {
-		for j, peer := range cluster.nodes {
+	for i, node := range cluster.Nodes {
+		for j, peer := range cluster.Nodes {
 			if i == j {
 				continue
 			}
@@ -55,7 +48,7 @@ func (cluster *Cluster) Down() error {
 		}
 	}
 
-	for _, node := range cluster.nodes {
+	for _, node := range cluster.Nodes {
 		if err := node.Down(); err != nil {
 			return err
 		}
