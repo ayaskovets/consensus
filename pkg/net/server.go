@@ -53,6 +53,7 @@ func (server *Server) Serve() error {
 					log.Printf("stop listening on %s", server.addr)
 					return
 				default:
+					log.Fatalf("error while accepting on %s", server.addr)
 					return
 				}
 			}
