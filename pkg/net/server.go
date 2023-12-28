@@ -14,8 +14,9 @@ type Server struct {
 
 	mu       sync.Mutex
 	listener net.Listener
-	wg       sync.WaitGroup
 	closed   chan any
+
+	wg sync.WaitGroup
 }
 
 // Constructs a new server object
