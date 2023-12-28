@@ -2,7 +2,7 @@
 
 ## Project structure
 ```pkg/consensus```
-- Main packange containing consensus algorithms. The intended place to put new algorithms to is this package
+- Main packange containing consensus algorithms. The intended place to put new algorithms or decorated versions existing ones to is this package
 
 ```pkg/net```
 - Simple network package what is based on __net/rpc__ and provides basic client/server types
