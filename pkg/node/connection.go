@@ -5,14 +5,12 @@ import "github.com/ayaskovets/consensus/pkg/net"
 // Connects the node to a peer with TCP address addr
 // Blocks until the connection is established
 func (node *Node) Connect(addr string) error {
-	peer := node.peers[addr]
-	if peer != nil {
+	if peer := node.peers[addr]; peer != nil {
 		return nil
 	}
 
 	client := net.NewClient(addr)
-	err := client.Connect()
-	if err != nil {
+	if err := client.Connect(); err != nil {
 		return err
 	}
 
@@ -28,8 +26,7 @@ func (node *Node) Disconnect(addr string) error {
 		return nil
 	}
 
-	err := peer.Disconnect()
-	if err != nil {
+	if err := peer.Disconnect(); err != nil {
 		return err
 	}
 

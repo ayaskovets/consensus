@@ -21,8 +21,7 @@ func NewCluster(nodes []*node.Node) Cluster {
 // Blocking
 func (cluster *Cluster) Up() error {
 	for _, node := range cluster.nodes {
-		err := node.Up()
-		if err != nil {
+		if err := node.Up(); err != nil {
 			return err
 		}
 	}
@@ -33,8 +32,7 @@ func (cluster *Cluster) Up() error {
 				continue
 			}
 
-			err := node.Connect(peer.Addr())
-			if err != nil {
+			if err := node.Connect(peer.Addr()); err != nil {
 				return err
 			}
 		}
@@ -51,16 +49,14 @@ func (cluster *Cluster) Down() error {
 				continue
 			}
 
-			err := node.Disconnect(peer.Addr())
-			if err != nil {
+			if err := node.Disconnect(peer.Addr()); err != nil {
 				return err
 			}
 		}
 	}
 
 	for _, node := range cluster.nodes {
-		err := node.Down()
-		if err != nil {
+		if err := node.Down(); err != nil {
 			return err
 		}
 	}

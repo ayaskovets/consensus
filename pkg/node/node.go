@@ -31,8 +31,7 @@ func (node *Node) Up() error {
 // All incoming connections to the node are closed
 func (node *Node) Down() error {
 	for _, peer := range node.peers {
-		err := peer.Disconnect()
-		if err != nil {
+		if err := peer.Disconnect(); err != nil {
 			return err
 		}
 	}

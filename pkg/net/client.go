@@ -24,8 +24,7 @@ func NewClient(addr string) *Client {
 // Blocking
 func (client *Client) Connect() error {
 	var err error
-	client.rpc, err = rpc.Dial("tcp", client.addr)
-	if err != nil {
+	if client.rpc, err = rpc.Dial("tcp", client.addr); err != nil {
 		return err
 	}
 
@@ -35,8 +34,7 @@ func (client *Client) Connect() error {
 
 // Closes the connection if it is open
 func (client *Client) Disconnect() error {
-	err := client.rpc.Close()
-	if err != nil {
+	if err := client.rpc.Close(); err != nil {
 		return err
 	}
 
