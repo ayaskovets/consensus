@@ -11,7 +11,7 @@ func (node *Node) Connect(addr string) error {
 	}
 
 	client := net.NewClient(addr)
-	err := client.Dial()
+	err := client.Connect()
 	if err != nil {
 		return err
 	}
@@ -28,7 +28,7 @@ func (node *Node) Disconnect(addr string) error {
 		return nil
 	}
 
-	err := peer.Close()
+	err := peer.Disconnect()
 	if err != nil {
 		return err
 	}

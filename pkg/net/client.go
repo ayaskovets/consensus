@@ -22,7 +22,7 @@ func NewClient(addr string) *Client {
 // Connects to the stored address
 // RPC server must be already started on the provided address
 // Blocking
-func (client *Client) Dial() error {
+func (client *Client) Connect() error {
 	var err error
 	client.rpc, err = rpc.Dial("tcp", client.addr)
 	if err != nil {
@@ -34,7 +34,7 @@ func (client *Client) Dial() error {
 }
 
 // Closes the connection if it is open
-func (client *Client) Close() error {
+func (client *Client) Disconnect() error {
 	err := client.rpc.Close()
 	if err != nil {
 		return err

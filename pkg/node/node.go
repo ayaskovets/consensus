@@ -24,17 +24,17 @@ func NewNode(addr string) *Node {
 // Starts up the node by starting its RPC server
 // Non-blocking
 func (node *Node) Up() error {
-	return node.server.Serve()
+	return node.server.Up()
 }
 
 // Shuts down the node by stopping its RPC server
 // All incoming connections to the node are closed
 func (node *Node) Down() error {
 	for _, peer := range node.peers {
-		err := peer.Close()
+		err := peer.Disconnect()
 		if err != nil {
 			return err
 		}
 	}
-	return node.server.Close()
+	return node.server.Down()
 }

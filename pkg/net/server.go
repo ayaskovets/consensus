@@ -31,7 +31,7 @@ func NewServer(addr string) *Server {
 
 // Starts to accept incoming RPS requests
 // Non-blocking
-func (server *Server) Serve() error {
+func (server *Server) Up() error {
 	server.mu.Lock()
 	defer server.mu.Unlock()
 
@@ -71,7 +71,7 @@ func (server *Server) Serve() error {
 }
 
 // Shuts down the RPC server
-func (server *Server) Close() error {
+func (server *Server) Down() error {
 	server.mu.Lock()
 	defer server.mu.Unlock()
 
