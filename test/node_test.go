@@ -15,7 +15,8 @@ func TestNodesConnectivity(t *testing.T) {
 
 	err := cluster.Up()
 	if err != nil {
-		t.Fatal(err)
+		t.Log(err)
+		t.Fail()
 	}
 
 	err = cluster.Down()
