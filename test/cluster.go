@@ -1,8 +1,6 @@
 package test
 
 import (
-	"time"
-
 	"github.com/ayaskovets/consensus/pkg/node"
 )
 
@@ -30,7 +28,6 @@ func (cluster *Cluster) Up() error {
 			return err
 		}
 	}
-	time.Sleep(time.Millisecond * 100)
 
 	for _, node := range cluster.nodes {
 		for _, peer := range cluster.nodes {

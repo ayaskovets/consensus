@@ -2,7 +2,6 @@ package test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/ayaskovets/consensus/pkg/net"
 )
@@ -13,7 +12,6 @@ func TestGracefulShutdown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(time.Millisecond * 100)
 
 	cln := net.NewClient(":10000")
 	err = cln.Dial()
