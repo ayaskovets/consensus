@@ -8,26 +8,22 @@ import (
 
 func TestGracefulShutdown(t *testing.T) {
 	srv := net.NewServer(":10000")
-	err := srv.Serve()
-	if err != nil {
+	if err := srv.Serve(); err != nil {
 		t.Fatal(err)
 	}
 
 	cln := net.NewClient(":10000")
-	err = cln.Dial()
-	if err != nil {
+	if err := cln.Dial(); err != nil {
 		t.Log(err)
 		t.Fail()
 	}
 
-	err = cln.Close()
-	if err != nil {
+	if err := cln.Close(); err != nil {
 		t.Log(err)
 		t.Fail()
 	}
 
-	err = srv.Close()
-	if err != nil {
+	if err := srv.Close(); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -13,14 +13,12 @@ func TestNodesConnectivity(t *testing.T) {
 		node.NewNode(":10003"),
 	})
 
-	err := cluster.Up()
-	if err != nil {
+	if err := cluster.Up(); err != nil {
 		t.Log(err)
 		t.Fail()
 	}
 
-	err = cluster.Down()
-	if err != nil {
+	if err := cluster.Down(); err != nil {
 		t.Fatal(err)
 	}
 }
