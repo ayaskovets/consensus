@@ -17,9 +17,7 @@ func NewCluster(nodes []*node.Node) Cluster {
 	}
 }
 
-// Connects the nodes to each other
-// Each node also holds a connection to itself to be able to self-send RPC
-// requests
+// Starts up the cluster and connects nodes to each other
 // Blocking
 func (cluster *Cluster) Up() error {
 	for _, node := range cluster.nodes {
@@ -29,8 +27,12 @@ func (cluster *Cluster) Up() error {
 		}
 	}
 
-	for _, node := range cluster.nodes {
-		for _, peer := range cluster.nodes {
+	for i, node := range cluster.nodes {
+		for j, peer := range cluster.nodes {
+			if i == j {
+				continue
+			}
+
 			err := node.Connect(peer.Addr())
 			if err != nil {
 				return err
@@ -43,8 +45,12 @@ func (cluster *Cluster) Up() error {
 
 // Shuts down the cluster disconnecting all nodes and stopping RPC servers
 func (cluster *Cluster) Down() error {
-	for _, node := range cluster.nodes {
-		for _, peer := range cluster.nodes {
+	for i, node := range cluster.nodes {
+		for j, peer := range cluster.nodes {
+			if i == j {
+				continue
+			}
+
 			err := node.Disconnect(peer.Addr())
 			if err != nil {
 				return err
