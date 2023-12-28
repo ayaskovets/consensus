@@ -20,7 +20,6 @@ type Server struct {
 }
 
 // Constructs a new server object
-// To start to accept incoming RPS calls, call Serve()
 func NewServer(addr string) *Server {
 	return &Server{
 		addr:   addr,
