@@ -20,15 +20,10 @@ func NewClient(addr string) *Client {
 	}
 }
 
-// Returns the address that is used to connect to the client
-func (client *Client) Addr() string {
-	return client.addr
-}
-
 // Invokes an RPC method on the client
 func (client *Client) Call(serviceMethod string, args any, reply any) error {
 	if client.rpc == nil {
-		return fmt.Errorf("rpc call (%s) on uninitialized connection %s", serviceMethod, client.addr)
+		return fmt.Errorf("uninitialized connection to %s", client.addr)
 	}
 	return client.rpc.Call(serviceMethod, args, reply)
 }

@@ -30,9 +30,9 @@ func (node *Node) Addr() string {
 
 // Returns TCP []address:port of node's peers
 func (node *Node) Peers() []string {
-	peers := make([]string, len(node.peers))
-	for _, peer := range node.peers {
-		peers = append(peers, peer.Addr())
+	peers := make([]string, 0, len(node.peers))
+	for addr, _ := range node.peers {
+		peers = append(peers, addr)
 	}
 	return peers
 }
@@ -79,7 +79,7 @@ func (node *Node) Disconnect(addr string) error {
 func (node *Node) Call(addr string, serviceMethod string, args any, reply any) error {
 	peer := node.peers[addr]
 	if peer == nil {
-		return fmt.Errorf("rpc call (%s) on unitialized connection %s", serviceMethod, addr)
+		return fmt.Errorf("not connected to %s", addr)
 	}
 	return peer.Call(serviceMethod, args, reply)
 }
