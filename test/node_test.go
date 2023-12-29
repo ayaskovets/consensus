@@ -7,18 +7,42 @@ import (
 )
 
 func TestNodesConnectivity(t *testing.T) {
-	cluster := Cluster{Nodes: []*node.Node{
-		node.NewNode(":10001"),
-		node.NewNode(":10002"),
-		node.NewNode(":10003"),
-	}}
+	node1 := node.NewNode(":10001")
+	if err := node1.Up(); err != nil {
+		t.Fatal(err)
+	}
 
-	if err := cluster.Up(); err != nil {
+	node2 := node.NewNode(":10002")
+	if err := node2.Up(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := node1.Connect(node2.Addr()); err != nil {
 		t.Log(err)
 		t.Fail()
 	}
 
-	if err := cluster.Down(); err != nil {
+	if err := node2.Connect(node1.Addr()); err != nil {
+		t.Log(err)
+		t.Fail()
+	}
+
+	if err := node1.Disconnect(node2.Addr()); err != nil {
+		t.Log(err)
+		t.Fail()
+	}
+
+	if err := node2.Disconnect(node1.Addr()); err != nil {
+		t.Log(err)
+		t.Fail()
+	}
+
+	if err := node2.Down(); err != nil {
+		t.Log(err)
+		t.Fail()
+	}
+
+	if err := node1.Down(); err != nil {
 		t.Fatal(err)
 	}
 }
