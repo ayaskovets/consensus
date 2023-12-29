@@ -28,6 +28,17 @@ func NewServer(addr string) *Server {
 	}
 }
 
+// Returns the address that the server accepts incoming connection on
+func (server *Server) Addr() string {
+	return server.addr
+}
+
+// Registers the rcvr object as an RPC receiver
+// Can be called multiple times
+func (server *Server) Register(rcvr any) error {
+	return server.rpc.Register(rcvr)
+}
+
 // Starts to accept incoming RPS requests
 // Non-blocking
 func (server *Server) Up() error {
