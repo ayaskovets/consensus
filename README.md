@@ -1,4 +1,4 @@
-## This is a simple implementation of the Raft distributed consensus algorithm in Go
+## This is a simple implementation of the Raft distributed consensus algorithm in Go. Module structure allows to add and test diffrent consensus algorithms
 
 ## Project structure
 ```pkg/net```
