@@ -14,7 +14,7 @@ type Server struct {
 
 	mu       sync.Mutex
 	listener net.Listener
-	closed   chan any
+	shutdown chan any
 
 	wg sync.WaitGroup
 }
@@ -22,9 +22,9 @@ type Server struct {
 // Constructs a new server object
 func NewServer(addr string) *Server {
 	return &Server{
-		addr:   addr,
-		rpc:    rpc.NewServer(),
-		closed: make(chan any),
+		addr:     addr,
+		rpc:      rpc.NewServer(),
+		shutdown: make(chan any),
 	}
 }
 
@@ -48,7 +48,7 @@ func (server *Server) Up() error {
 			conn, err := server.listener.Accept()
 			if err != nil {
 				select {
-				case <-server.closed:
+				case <-server.shutdown:
 					log.Printf("stop listening on %s", server.addr)
 					return
 				default:
@@ -74,7 +74,7 @@ func (server *Server) Down() error {
 	server.mu.Lock()
 	defer server.mu.Unlock()
 
-	close(server.closed)
+	close(server.shutdown)
 	err := server.listener.Close()
 	server.wg.Wait()
 	return err
