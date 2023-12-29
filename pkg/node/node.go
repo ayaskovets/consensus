@@ -30,10 +30,5 @@ func (node *Node) Up() error {
 // Shuts down the node by stopping its RPC server
 // All incoming connections to the node are closed
 func (node *Node) Down() error {
-	for _, peer := range node.peers {
-		if err := peer.Disconnect(); err != nil {
-			return err
-		}
-	}
 	return node.server.Down()
 }
