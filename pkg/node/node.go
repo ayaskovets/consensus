@@ -31,7 +31,7 @@ func (node *Node) Addr() string {
 // Returns TCP []address:port of node's peers
 func (node *Node) Peers() []string {
 	peers := make([]string, 0, len(node.peers))
-	for addr, _ := range node.peers {
+	for addr := range node.peers {
 		peers = append(peers, addr)
 	}
 	return peers
