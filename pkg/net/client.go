@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"log"
 	"net/rpc"
+	"sync"
 )
 
 // Wrapper for an RPC client
 type Client struct {
 	addr string
-	rpc  *rpc.Client
+
+	mu  sync.Mutex
+	rpc *rpc.Client
 }
 
 // Constructs a new client
@@ -17,6 +20,7 @@ type Client struct {
 func NewClient(addr string) *Client {
 	return &Client{
 		addr: addr,
+		rpc:  nil,
 	}
 }
 
@@ -28,10 +32,18 @@ func (client *Client) Call(serviceMethod string, args any, reply any) error {
 	return client.rpc.Call(serviceMethod, args, reply)
 }
 
-// Connects to the stored address
-// RPC server must be already started on the provided address
-// Blocking
+// Connects to the stored address.
+// RPC server must be already started on the provided address.
+// Blocking.
+// Idempotent, returns nil if already connected
 func (client *Client) Connect() error {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+
+	if client.rpc != nil {
+		return nil
+	}
+
 	var err error
 	if client.rpc, err = rpc.Dial("tcp", client.addr); err != nil {
 		return err
@@ -41,11 +53,20 @@ func (client *Client) Connect() error {
 	return nil
 }
 
-// Closes the connection if it is open
+// Closes the connection if it is open.
+// Idempotent, returns nil if already disconnected
 func (client *Client) Disconnect() error {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+
+	if client.rpc == nil {
+		return nil
+	}
+
 	if err := client.rpc.Close(); err != nil {
 		return err
 	}
+	client.rpc = nil
 
 	log.Printf("disconnected from %s", client.addr)
 	return nil

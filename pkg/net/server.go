@@ -21,11 +21,18 @@ type Server struct {
 
 // Constructs a new server object
 func NewServer(addr string) *Server {
-	return &Server{
-		addr:     addr,
-		rpc:      rpc.NewServer(),
+	server := Server{
+		addr: addr,
+		rpc:  rpc.NewServer(),
+
+		mu:       sync.Mutex{},
+		listener: nil,
 		shutdown: make(chan any),
+
+		wg: sync.WaitGroup{},
 	}
+	close(server.shutdown)
+	return &server
 }
 
 // Returns the address that the server accepts incoming connection on
@@ -33,17 +40,26 @@ func (server *Server) Addr() string {
 	return server.addr
 }
 
-// Registers the rcvr object as an RPC receiver
+// Registers the rcvr object as an RPC receiver.
 // Can be called multiple times
 func (server *Server) Register(rcvr any) error {
 	return server.rpc.Register(rcvr)
 }
 
-// Starts to accept incoming RPS requests
-// Non-blocking
+// Starts to accept incoming RPS requests.
+// Non-blocking.
+// Idempotent, returns nil if already running
 func (server *Server) Up() error {
 	server.mu.Lock()
 	defer server.mu.Unlock()
+
+	select {
+	case <-server.shutdown:
+		server.shutdown = make(chan any)
+		break
+	default:
+		return nil
+	}
 
 	var err error
 	server.listener, err = net.Listen("tcp", server.addr)
@@ -80,10 +96,18 @@ func (server *Server) Up() error {
 	return nil
 }
 
-// Shuts down the RPC server
+// Shuts down the RPC server.
+// Idempotent, returns nil if already stopped
 func (server *Server) Down() error {
 	server.mu.Lock()
 	defer server.mu.Unlock()
+
+	select {
+	case <-server.shutdown:
+		return nil
+	default:
+		break
+	}
 
 	close(server.shutdown)
 	err := server.listener.Close()
