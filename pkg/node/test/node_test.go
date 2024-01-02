@@ -2,15 +2,17 @@ package node
 
 import (
 	"testing"
+
+	"github.com/ayaskovets/consensus/pkg/node"
 )
 
 func TestNodesConnectivity(t *testing.T) {
-	node1 := NewNode(":10001")
+	node1 := node.NewNode(":10001")
 	if err := node1.Up(); err != nil {
 		t.Fatal(err)
 	}
 
-	node2 := NewNode(":10002")
+	node2 := node.NewNode(":10002")
 	if err := node2.Up(); err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +48,7 @@ func TestNodesConnectivity(t *testing.T) {
 }
 
 func TestNodeIdempotency(t *testing.T) {
-	node1 := NewNode(":10001")
+	node1 := node.NewNode(":10001")
 	if err := node1.Up(); err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +57,7 @@ func TestNodeIdempotency(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	node2 := NewNode(":10002")
+	node2 := node.NewNode(":10002")
 	if err := node2.Up(); err != nil {
 		t.Fatal(err)
 	}

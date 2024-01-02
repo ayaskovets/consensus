@@ -1,14 +1,18 @@
 package net
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/ayaskovets/consensus/pkg/net"
+)
 
 func TestClientGracefulShutdown(t *testing.T) {
-	srv := NewServer(":10000")
+	srv := net.NewServer(":10000")
 	if err := srv.Up(); err != nil {
 		t.Fatal(err)
 	}
 
-	cln := NewClient(":10000")
+	cln := net.NewClient(":10000")
 	if err := cln.Connect(); err != nil {
 		t.Log(err)
 		t.Fail()
@@ -25,12 +29,12 @@ func TestClientGracefulShutdown(t *testing.T) {
 }
 
 func TestClientIdempotency(t *testing.T) {
-	srv := NewServer(":10000")
+	srv := net.NewServer(":10000")
 	if err := srv.Up(); err != nil {
 		t.Fatal(err)
 	}
 
-	cln := NewClient(":10000")
+	cln := net.NewClient(":10000")
 	if err := cln.Connect(); err != nil {
 		t.Log(err)
 		t.Fail()
