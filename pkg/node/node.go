@@ -11,6 +11,7 @@ import (
 // Supports communication with other vertices via RPC and provides network
 // topology information
 type Node struct {
+	addr   string
 	server *net.Server
 	peers  map[string]*net.Client
 }
@@ -18,6 +19,7 @@ type Node struct {
 // Constructs a new node without starting its RPC server
 func NewNode(addr string) *Node {
 	return &Node{
+		addr:   addr,
 		server: net.NewServer(addr),
 		peers:  make(map[string]*net.Client),
 	}
@@ -25,7 +27,7 @@ func NewNode(addr string) *Node {
 
 // Returns TCP address:port of the node
 func (node *Node) Addr() string {
-	return node.server.Addr()
+	return node.addr
 }
 
 // Returns TCP []address:port of node's peers
