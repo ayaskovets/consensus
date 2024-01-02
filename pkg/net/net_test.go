@@ -1,8 +1,6 @@
 package net
 
-import (
-	"testing"
-)
+import "testing"
 
 func TestClientGracefulShutdown(t *testing.T) {
 	srv := NewServer(":10000")
