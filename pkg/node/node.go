@@ -37,7 +37,7 @@ func (node *Node) Peers() []string {
 	return peers
 }
 
-// Registers the rcvr object as an RPC receiver.
+// Registers the rcvr object as RPC receiver.
 // Multiple receivers can be added
 func (node *Node) Register(rcvr any) error {
 	return node.server.Register(rcvr)
