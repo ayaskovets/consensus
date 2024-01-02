@@ -7,7 +7,7 @@ import (
 )
 
 // Consensus-independent vertex in the network of other Node() objects
-// that can be possibly located on different remote hosts
+// that can be possibly located on different remote hosts.
 // Supports communication with other vertices via RPC and provides network
 // topology information
 type Node struct {
@@ -37,14 +37,15 @@ func (node *Node) Peers() []string {
 	return peers
 }
 
-// Registers the rcvr object as an RPC receiver
-// Can be called multiple times
+// Registers the rcvr object as an RPC receiver.
+// Multiple receivers can be added
 func (node *Node) Register(rcvr any) error {
 	return node.server.Register(rcvr)
 }
 
-// Connects the node to a peer with TCP address addr
-// Blocks until the connection is established
+// Connects the node to a peer with TCP address addr.
+// Blocks until the connection is established.
+// Idempotent, returnts nil if already connected
 func (node *Node) Connect(addr string) error {
 	if peer := node.peers[addr]; peer != nil {
 		return nil
@@ -59,8 +60,9 @@ func (node *Node) Connect(addr string) error {
 	return nil
 }
 
-// Disconnects the node from a peer with TCP address addr
-// Non-blocking
+// Disconnects the node from a peer with TCP address addr.
+// Non-blocking.
+// Idempotent, returns nil if already disconnected
 func (node *Node) Disconnect(addr string) error {
 	peer := node.peers[addr]
 	if peer == nil {
@@ -84,13 +86,13 @@ func (node *Node) Call(addr string, serviceMethod string, args any, reply any) e
 	return peer.Call(serviceMethod, args, reply)
 }
 
-// Starts up the node by starting its RPC server
+// Starts up the node by starting its RPC server.
 // Non-blocking
 func (node *Node) Up() error {
 	return node.server.Up()
 }
 
-// Shuts down the node by stopping its RPC server
+// Shuts down the node by stopping its RPC server.
 // All incoming connections to the node are closed
 func (node *Node) Down() error {
 	return node.server.Down()
