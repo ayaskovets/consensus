@@ -55,7 +55,7 @@ func TestServerRestart(t *testing.T) {
 
 func TestServerRegister(t *testing.T) {
 	srv := net.NewServer(":10000")
-	if err := srv.Register(&RPC{}); err != nil {
+	if err := srv.Register(&PingRPC{}); err != nil {
 		t.Fatal(err)
 	}
 }
