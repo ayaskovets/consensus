@@ -9,7 +9,7 @@ import (
 
 // Wrapper for RPC server
 type Server struct {
-	addr string
+	addr net.Addr
 	rpc  *rpc.Server
 
 	mu       sync.Mutex
@@ -20,7 +20,7 @@ type Server struct {
 }
 
 // Construct new server object
-func NewServer(addr string) *Server {
+func NewServer(addr net.Addr) *Server {
 	server := Server{
 		addr: addr,
 		rpc:  rpc.NewServer(),
@@ -60,7 +60,7 @@ func (server *Server) Up() error {
 	}
 
 	var err error
-	server.listener, err = net.Listen("tcp", server.addr)
+	server.listener, err = net.Listen(server.addr.Network(), server.addr.String())
 	if err != nil {
 		return err
 	}

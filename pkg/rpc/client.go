@@ -3,20 +3,21 @@ package rpc
 import (
 	"fmt"
 	"log"
+	"net"
 	"net/rpc"
 	"sync"
 )
 
 // Wrapper for RPC client
 type Client struct {
-	addr string
+	addr net.Addr
 
 	mu  sync.Mutex
 	rpc *rpc.Client
 }
 
 // Construct new client object
-func NewClient(addr string) *Client {
+func NewClient(addr net.Addr) *Client {
 	return &Client{
 		addr: addr,
 		rpc:  nil,
@@ -37,7 +38,7 @@ func (client *Client) Connect() error {
 	}
 
 	var err error
-	if client.rpc, err = rpc.Dial("tcp", client.addr); err != nil {
+	if client.rpc, err = rpc.Dial(client.addr.Network(), client.addr.String()); err != nil {
 		return err
 	}
 

@@ -1,18 +1,18 @@
-package test
+package rpc_test
 
 import (
 	"testing"
 
-	"github.com/ayaskovets/consensus/pkg/net"
+	"github.com/ayaskovets/consensus/pkg/rpc"
 )
 
 func TestGracefulShutdown(t *testing.T) {
-	srv := net.NewServer(":10000")
+	srv := rpc.NewServer(addr)
 	if err := srv.Up(); err != nil {
 		t.Fatal(err)
 	}
 
-	cln := net.NewClient(":10000")
+	cln := rpc.NewClient(addr)
 	if err := cln.Connect(); err != nil {
 		t.Log(err)
 		t.Fail()
@@ -29,12 +29,12 @@ func TestGracefulShutdown(t *testing.T) {
 }
 
 func TestClientIdempotency(t *testing.T) {
-	srv := net.NewServer(":10000")
+	srv := rpc.NewServer(addr)
 	if err := srv.Up(); err != nil {
 		t.Fatal(err)
 	}
 
-	cln := net.NewClient(":10000")
+	cln := rpc.NewClient(addr)
 	for i := 0; i < 2; i++ {
 		if err := cln.Connect(); err != nil {
 			t.Log(err)
@@ -55,8 +55,8 @@ func TestClientIdempotency(t *testing.T) {
 }
 
 func TestClientCall(t *testing.T) {
-	srv := net.NewServer(":10000")
-	if err := srv.Register(&PingRPC{}); err != nil {
+	srv := rpc.NewServer(addr)
+	if err := srv.Register(&RPC{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -64,13 +64,13 @@ func TestClientCall(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cln := net.NewClient(":10000")
+	cln := rpc.NewClient(addr)
 	if err := cln.Connect(); err != nil {
 		t.Log(err)
 		t.Fail()
 	}
 
-	if err := cln.Call("PingRPC.Ping", PingArgs{}, &PingReply{}); err != nil {
+	if err := cln.Call("RPC.Call", struct{}{}, &struct{}{}); err != nil {
 		t.Log(err)
 		t.Fail()
 	}
@@ -86,8 +86,8 @@ func TestClientCall(t *testing.T) {
 }
 
 func TestClientReconnect(t *testing.T) {
-	srv := net.NewServer(":10000")
-	if err := srv.Register(&PingRPC{}); err != nil {
+	srv := rpc.NewServer(addr)
+	if err := srv.Register(&RPC{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -95,13 +95,13 @@ func TestClientReconnect(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cln := net.NewClient(":10000")
+	cln := rpc.NewClient(addr)
 	if err := cln.Connect(); err != nil {
 		t.Log(err)
 		t.Fail()
 	}
 
-	if err := cln.Call("PingRPC.Ping", PingArgs{}, &PingReply{}); err != nil {
+	if err := cln.Call("RPC.Call", struct{}{}, &struct{}{}); err != nil {
 		t.Log(err)
 		t.Fail()
 	}
@@ -111,7 +111,7 @@ func TestClientReconnect(t *testing.T) {
 		t.Fail()
 	}
 
-	if err := cln.Call("PingRPC.Ping", PingArgs{}, &PingReply{}); err == nil {
+	if err := cln.Call("RPC.Call", struct{}{}, &struct{}{}); err == nil {
 		t.Log(err)
 		t.Fail()
 	}
@@ -121,7 +121,7 @@ func TestClientReconnect(t *testing.T) {
 		t.Fail()
 	}
 
-	if err := cln.Call("PingRPC.Ping", PingArgs{}, &PingReply{}); err != nil {
+	if err := cln.Call("RPC.Call", struct{}{}, &struct{}{}); err != nil {
 		t.Log(err)
 		t.Fail()
 	}
