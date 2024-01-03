@@ -1,4 +1,4 @@
-package net
+package test
 
 import (
 	"testing"
@@ -49,6 +49,13 @@ func TestServerRestart(t *testing.T) {
 	}
 
 	if err := srv.Down(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestServerRegister(t *testing.T) {
+	srv := net.NewServer(":10000")
+	if err := srv.Register(&RPC{}); err != nil {
 		t.Fatal(err)
 	}
 }
