@@ -1,4 +1,4 @@
-package node
+package node_test
 
 import (
 	"testing"
@@ -7,12 +7,12 @@ import (
 )
 
 func TestNodesConnectivity(t *testing.T) {
-	node1 := node.NewNode(":10001")
+	node1 := node.NewNode("127.0.0.1:10001")
 	if err := node1.Up(); err != nil {
 		t.Fatal(err)
 	}
 
-	node2 := node.NewNode(":10002")
+	node2 := node.NewNode("127.0.0.1:10002")
 	if err := node2.Up(); err != nil {
 		t.Log(err)
 		t.Fail()
@@ -49,7 +49,7 @@ func TestNodesConnectivity(t *testing.T) {
 }
 
 func TestNodeIdempotency(t *testing.T) {
-	node1 := node.NewNode(":10001")
+	node1 := node.NewNode("127.0.0.1:10001")
 	if err := node1.Up(); err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestNodeIdempotency(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	node2 := node.NewNode(":10002")
+	node2 := node.NewNode("127.0.0.1:10002")
 	for i := 0; i < 2; i++ {
 		if err := node2.Up(); err != nil {
 			t.Fatal(err)

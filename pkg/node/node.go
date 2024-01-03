@@ -2,23 +2,25 @@ package node
 
 import (
 	"fmt"
+	"net"
+	"net/netip"
 
-	"github.com/ayaskovets/consensus/pkg/net"
+	"github.com/ayaskovets/consensus/pkg/rpc"
 )
 
 // Consensus-independent node in a peer-to-peer network
 type Node struct {
 	addr   string
-	server *net.Server
-	peers  map[string]*net.Client
+	server *rpc.Server
+	peers  map[string]*rpc.Client
 }
 
 // Construct a new node object
 func NewNode(addr string) *Node {
 	return &Node{
 		addr:   addr,
-		server: net.NewServer(addr),
-		peers:  make(map[string]*net.Client),
+		server: rpc.NewServer(net.TCPAddrFromAddrPort(netip.MustParseAddrPort(addr))),
+		peers:  make(map[string]*rpc.Client),
 	}
 }
 
@@ -51,7 +53,7 @@ func (node *Node) Connect(addr string) error {
 		return nil
 	}
 
-	client := net.NewClient(addr)
+	client := rpc.NewClient(net.TCPAddrFromAddrPort(netip.MustParseAddrPort(addr)))
 	if err := client.Connect(); err != nil {
 		return err
 	}
