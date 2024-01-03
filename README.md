@@ -2,19 +2,15 @@
 
 ## Project structure
 ```pkg/net```
-- Simple network package what is based on __net/rpc__ and provides basic client/server types
-- This package is independent of any other packages in the module and only provides networking utilities
+- Network package that is based on __net/rpc__. Provides basic client/server types and utilities
 
 ```pkg/node```
-- Network node that uses __net/rpc__ module to communicate with other nodes of the same type
-- This package is dependent only on the networking utilities and should be consensus-agnostic
+- Peer-to-peer network node implemented with __pkg/net__ tools
+- This package depends only on __pkg/net__ and is designed to be consensus-agnostic
 
 ```pkg/consensus```
-- Main packange containing consensus algorithms. The intended place to put new algorithms or decorated versions existing ones to is this package
-- This package should only depend on the node package which provides necessary methods for intercommunication of peer consensus objects
-
-```pkg/test```
-- Tests for the entire module
+- Main packange that contains consensus algorithms. This is the intended place to put a new algorithm or a decorated version of an existing one to
+- This package depends on __pkg/net__ package which provides necessary means for managing a peer-to-peer network
 
 ## To launch a throwaway build
 ```go build ./...```
