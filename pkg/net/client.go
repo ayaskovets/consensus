@@ -7,7 +7,7 @@ import (
 	"sync"
 )
 
-// Wrapper for an RPC client
+// Wrapper for RPC client
 type Client struct {
 	addr string
 
@@ -15,8 +15,7 @@ type Client struct {
 	rpc *rpc.Client
 }
 
-// Constructs a new client
-// To connect to the RPC server running on the provided address, use Dial()
+// Constructs new client object
 func NewClient(addr string) *Client {
 	return &Client{
 		addr: addr,
@@ -24,18 +23,11 @@ func NewClient(addr string) *Client {
 	}
 }
 
-// Invokes an RPC method on the client
-func (client *Client) Call(serviceMethod string, args any, reply any) error {
-	if client.rpc == nil {
-		return fmt.Errorf("uninitialized connection to %s", client.addr)
-	}
-	return client.rpc.Call(serviceMethod, args, reply)
-}
-
-// Connects to the stored address.
-// RPC server must be already started on the provided address.
-// Blocking.
-// Idempotent, returns nil if already connected
+// Connects to RPC server.
+// Blocking
+//
+// Idempotent. Returns nil if already connected. Each call to this function
+// must be followed by a corresponding disconnect.
 func (client *Client) Connect() error {
 	client.mu.Lock()
 	defer client.mu.Unlock()
@@ -53,8 +45,16 @@ func (client *Client) Connect() error {
 	return nil
 }
 
-// Closes the connection if it is open.
-// Idempotent, returns nil if already disconnected
+// Invokes RPC method
+func (client *Client) Call(serviceMethod string, args any, reply any) error {
+	if client.rpc == nil {
+		return fmt.Errorf("uninitialized connection to %s", client.addr)
+	}
+	return client.rpc.Call(serviceMethod, args, reply)
+}
+
+// Disconnects from RPC server
+// Idempotent. Returns nil if already disconnected
 func (client *Client) Disconnect() error {
 	client.mu.Lock()
 	defer client.mu.Unlock()

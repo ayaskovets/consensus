@@ -7,7 +7,7 @@ import (
 	"sync"
 )
 
-// Wrapper for an RPC server
+// Wrapper for RPC server
 type Server struct {
 	addr string
 	rpc  *rpc.Server
@@ -19,7 +19,7 @@ type Server struct {
 	wg sync.WaitGroup
 }
 
-// Constructs a new server object
+// Constructs new server object
 func NewServer(addr string) *Server {
 	server := Server{
 		addr: addr,
@@ -35,15 +35,18 @@ func NewServer(addr string) *Server {
 	return &server
 }
 
-// Registers the rcvr object as an RPC receiver.
-// Can be called multiple times
+// Registers rcvr object as RPC receiver.
+// Having multiple receivers of different types is allowed
 func (server *Server) Register(rcvr any) error {
 	return server.rpc.Register(rcvr)
 }
 
-// Starts to accept incoming RPS requests.
-// Non-blocking.
-// Idempotent, returns nil if already running
+// Begins to accept incoming RPS requests.
+// Non-blocking
+//
+// Idempotent. Returns nil if already running i.e. has not been stopped since
+// the last startup. Each call to this function must be followed by a
+// corresponding shutdown
 func (server *Server) Up() error {
 	server.mu.Lock()
 	defer server.mu.Unlock()
@@ -71,7 +74,6 @@ func (server *Server) Up() error {
 			if err != nil {
 				select {
 				case <-server.shutdown:
-					log.Printf("stop listening on %s", server.addr)
 					return
 				default:
 					log.Fatalf("error while accepting on %s", server.addr)
@@ -91,11 +93,15 @@ func (server *Server) Up() error {
 	return nil
 }
 
-// Shuts down the RPC server.
-// Idempotent, returns nil if already stopped
+// Shuts down RPC server
+// Successful call indicates that server can be started again
+//
+// Idempotent. Returns nil if already stopped
 func (server *Server) Down() error {
 	server.mu.Lock()
 	defer server.mu.Unlock()
+
+	log.Printf("stop listening on %s", server.addr)
 
 	select {
 	case <-server.shutdown:
