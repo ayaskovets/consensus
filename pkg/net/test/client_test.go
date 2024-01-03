@@ -1,4 +1,4 @@
-package net
+package test
 
 import (
 	"testing"
@@ -6,7 +6,7 @@ import (
 	"github.com/ayaskovets/consensus/pkg/net"
 )
 
-func TestClientGracefulShutdown(t *testing.T) {
+func TestGracefulShutdown(t *testing.T) {
 	srv := net.NewServer(":10000")
 	if err := srv.Up(); err != nil {
 		t.Fatal(err)
