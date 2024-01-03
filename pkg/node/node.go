@@ -6,17 +6,14 @@ import (
 	"github.com/ayaskovets/consensus/pkg/net"
 )
 
-// Consensus-independent vertex in the network of other Node() objects
-// that can be possibly located on different remote hosts.
-// Supports communication with other vertices via RPC and provides network
-// topology information
+// Consensus-independent node in a peer-to-peer network
 type Node struct {
 	addr   string
 	server *net.Server
 	peers  map[string]*net.Client
 }
 
-// Constructs a new node without starting its RPC server
+// Construct a new node object
 func NewNode(addr string) *Node {
 	return &Node{
 		addr:   addr,
@@ -25,12 +22,12 @@ func NewNode(addr string) *Node {
 	}
 }
 
-// Returns TCP address:port of the node
+// Return address of the node
 func (node *Node) Addr() string {
 	return node.addr
 }
 
-// Returns TCP []address:port of node's peers
+// Returns peers addresses
 func (node *Node) Peers() []string {
 	peers := make([]string, 0, len(node.peers))
 	for addr := range node.peers {
@@ -39,15 +36,16 @@ func (node *Node) Peers() []string {
 	return peers
 }
 
-// Registers the rcvr object as RPC receiver.
-// Multiple receivers can be added
+// Register rcvr object as RPC receiver.
+// Having multiple receivers of different types is allowed
 func (node *Node) Register(rcvr any) error {
 	return node.server.Register(rcvr)
 }
 
-// Connects the node to a peer with TCP address addr.
-// Blocks until the connection is established.
-// Idempotent, returnts nil if already connected
+// Connect to peer.
+// Blocks until the connection is established
+//
+// Idempotent. Returns nil if already connected
 func (node *Node) Connect(addr string) error {
 	if peer := node.peers[addr]; peer != nil {
 		return nil
@@ -62,9 +60,10 @@ func (node *Node) Connect(addr string) error {
 	return nil
 }
 
-// Disconnects the node from a peer with TCP address addr.
-// Non-blocking.
-// Idempotent, returns nil if already disconnected
+// Disconnects from peer.
+// Non-blocking
+//
+// Idempotent. Returns nil if already disconnected
 func (node *Node) Disconnect(addr string) error {
 	peer := node.peers[addr]
 	if peer == nil {
@@ -79,7 +78,13 @@ func (node *Node) Disconnect(addr string) error {
 	return nil
 }
 
-// Invokes RPC method on an object with proveded addr
+// Start up node.
+// Non-blocking
+func (node *Node) Up() error {
+	return node.server.Up()
+}
+
+// Invoke RPC method on the peer
 func (node *Node) Call(addr string, serviceMethod string, args any, reply any) error {
 	peer := node.peers[addr]
 	if peer == nil {
@@ -88,14 +93,9 @@ func (node *Node) Call(addr string, serviceMethod string, args any, reply any) e
 	return peer.Call(serviceMethod, args, reply)
 }
 
-// Starts up the node by starting its RPC server.
-// Non-blocking
-func (node *Node) Up() error {
-	return node.server.Up()
-}
-
-// Shuts down the node by stopping its RPC server.
-// All incoming connections to the node are closed
+// Shutdown node
+//
+// All connections to peers should be closed manually
 func (node *Node) Down() error {
 	return node.server.Down()
 }
