@@ -19,7 +19,7 @@ type Server struct {
 	wg sync.WaitGroup
 }
 
-// Constructs new server object
+// Construct new server object
 func NewServer(addr string) *Server {
 	server := Server{
 		addr: addr,
@@ -35,13 +35,13 @@ func NewServer(addr string) *Server {
 	return &server
 }
 
-// Registers rcvr object as RPC receiver.
+// Register rcvr object as RPC receiver.
 // Having multiple receivers of different types is allowed
 func (server *Server) Register(rcvr any) error {
 	return server.rpc.Register(rcvr)
 }
 
-// Begins to accept incoming RPS requests.
+// Begin to accept incoming RPS requests.
 // Non-blocking
 //
 // Idempotent. Returns nil if already running i.e. has not been stopped since
@@ -93,7 +93,7 @@ func (server *Server) Up() error {
 	return nil
 }
 
-// Shuts down RPC server
+// Shutdown RPC server
 // Successful call indicates that server can be started again
 //
 // Idempotent. Returns nil if already stopped

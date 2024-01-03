@@ -15,7 +15,7 @@ type Client struct {
 	rpc *rpc.Client
 }
 
-// Constructs new client object
+// Construct new client object
 func NewClient(addr string) *Client {
 	return &Client{
 		addr: addr,
@@ -23,7 +23,7 @@ func NewClient(addr string) *Client {
 	}
 }
 
-// Connects to RPC server.
+// Connect to RPC server.
 // Blocking
 //
 // Idempotent. Returns nil if already connected. Each call to this function
@@ -45,7 +45,7 @@ func (client *Client) Connect() error {
 	return nil
 }
 
-// Invokes RPC method
+// Invoke RPC method
 func (client *Client) Call(serviceMethod string, args any, reply any) error {
 	if client.rpc == nil {
 		return fmt.Errorf("uninitialized connection to %s", client.addr)
@@ -53,7 +53,7 @@ func (client *Client) Call(serviceMethod string, args any, reply any) error {
 	return client.rpc.Call(serviceMethod, args, reply)
 }
 
-// Disconnects from RPC server
+// Disconnect from RPC server
 // Idempotent. Returns nil if already disconnected
 func (client *Client) Disconnect() error {
 	client.mu.Lock()
