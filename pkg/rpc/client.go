@@ -54,7 +54,8 @@ func (client *Client) Call(serviceMethod string, args any, reply any) error {
 	return client.rpc.Call(serviceMethod, args, reply)
 }
 
-// Disconnect from RPC server
+// Disconnect from RPC server.
+//
 // Idempotent. Returns nil if already disconnected
 func (client *Client) Disconnect() error {
 	client.mu.Lock()
