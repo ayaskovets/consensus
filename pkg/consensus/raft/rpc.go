@@ -2,7 +2,7 @@ package raft
 
 type RequestVoteArgs struct {
 	Term        int
-	CandidateId string
+	CandidateId int
 }
 
 type RequestVoteReply struct {
@@ -21,7 +21,7 @@ func (raft *Raft) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) err
 		return nil
 	}
 
-	if len(raft.votedFor) != 0 && raft.votedFor != args.CandidateId {
+	if raft.votedFor != -1 && raft.votedFor != args.CandidateId {
 		reply.Term = raft.currentTerm
 		reply.VoteGranted = false
 		return nil
@@ -35,7 +35,7 @@ func (raft *Raft) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) err
 
 type AppendEntriesArgs struct {
 	Term     int
-	LeaderId string
+	LeaderId int
 }
 
 type AppendEntriesReply struct {
