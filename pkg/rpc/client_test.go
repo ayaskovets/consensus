@@ -4,120 +4,55 @@ import (
 	"testing"
 
 	"github.com/ayaskovets/consensus/pkg/rpc"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGracefulShutdown(t *testing.T) {
 	srv := rpc.NewServer(addr)
-	if err := srv.Up(); err != nil {
-		t.Error(err)
-	}
-
 	cln := rpc.NewClient(addr)
-	if err := cln.Connect(); err != nil {
-		t.Error(err)
-	}
 
-	if err := cln.Disconnect(); err != nil {
-		t.Error(err)
-	}
-
-	if err := srv.Down(); err != nil {
-		t.Error(err)
-	}
+	assert.Nil(t, srv.Up())
+	assert.Nil(t, cln.Connect())
+	assert.Nil(t, cln.Disconnect())
+	assert.Nil(t, srv.Down())
 }
 
 func TestClientIdempotency(t *testing.T) {
 	srv := rpc.NewServer(addr)
-	if err := srv.Up(); err != nil {
-		t.Error(err)
-	}
-
 	cln := rpc.NewClient(addr)
-	for i := 0; i < 2; i++ {
-		if err := cln.Connect(); err != nil {
-			t.Error(err)
-		}
-	}
 
-	for i := 0; i < 2; i++ {
-		if err := cln.Disconnect(); err != nil {
-			t.Error(err)
-		}
-	}
-
-	if err := srv.Down(); err != nil {
-		t.Error(err)
-	}
+	assert.Nil(t, srv.Up())
+	assert.Nil(t, cln.Connect())
+	assert.Nil(t, cln.Connect())
+	assert.Nil(t, cln.Disconnect())
+	assert.Nil(t, cln.Disconnect())
+	assert.Nil(t, srv.Down())
 }
 
 func TestClientCall(t *testing.T) {
 	srv := rpc.NewServer(addr)
-	if err := srv.Register(&RPC{}); err != nil {
-		t.Error(err)
-	}
-
-	if err := srv.Up(); err != nil {
-		t.Error(err)
-	}
-
 	cln := rpc.NewClient(addr)
-	if err := cln.Connect(); err != nil {
-		t.Error(err)
-	}
 
-	if err := cln.Call("RPC.Call", struct{}{}, &struct{}{}); err != nil {
-		t.Error(err)
-	}
-
-	if err := cln.Disconnect(); err != nil {
-		t.Error(err)
-	}
-
-	if err := srv.Down(); err != nil {
-		t.Error(err)
-	}
+	assert.Nil(t, srv.Register(&RPC{}))
+	assert.Nil(t, srv.Up())
+	assert.Nil(t, cln.Connect())
+	assert.Nil(t, cln.Call("RPC.Call", struct{}{}, &struct{}{}))
+	assert.Nil(t, cln.Disconnect())
+	assert.Nil(t, srv.Down())
 }
 
 func TestClientReconnect(t *testing.T) {
 	srv := rpc.NewServer(addr)
-	if err := srv.Register(&RPC{}); err != nil {
-		t.Error(err)
-	}
-
-	if err := srv.Up(); err != nil {
-		t.Error(err)
-	}
-
 	cln := rpc.NewClient(addr)
-	if err := cln.Connect(); err != nil {
-		t.Error(err)
-	}
 
-	if err := cln.Call("RPC.Call", struct{}{}, &struct{}{}); err != nil {
-		t.Error(err)
-	}
-
-	if err := cln.Disconnect(); err != nil {
-		t.Error(err)
-	}
-
-	if err := cln.Call("RPC.Call", struct{}{}, &struct{}{}); err == nil {
-		t.Error(err)
-	}
-
-	if err := cln.Connect(); err != nil {
-		t.Error(err)
-	}
-
-	if err := cln.Call("RPC.Call", struct{}{}, &struct{}{}); err != nil {
-		t.Error(err)
-	}
-
-	if err := cln.Disconnect(); err != nil {
-		t.Error(err)
-	}
-
-	if err := srv.Down(); err != nil {
-		t.Error(err)
-	}
+	assert.Nil(t, srv.Register(&RPC{}))
+	assert.Nil(t, srv.Up())
+	assert.Nil(t, cln.Connect())
+	assert.Nil(t, cln.Call("RPC.Call", struct{}{}, &struct{}{}))
+	assert.Nil(t, cln.Disconnect())
+	assert.NotNil(t, cln.Call("RPC.Call", struct{}{}, &struct{}{}))
+	assert.Nil(t, cln.Connect())
+	assert.Nil(t, cln.Call("RPC.Call", struct{}{}, &struct{}{}))
+	assert.Nil(t, cln.Disconnect())
+	assert.Nil(t, srv.Down())
 }

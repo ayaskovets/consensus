@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ayaskovets/consensus/pkg/rpc"
+	"github.com/stretchr/testify/assert"
 )
 
 var addr = net.TCPAddrFromAddrPort(netip.MustParseAddrPort("127.0.0.1:10000"))
@@ -20,52 +21,31 @@ func (RPC) Call(Args, *Reply) error {
 
 func TestServerGracefulShutdown(t *testing.T) {
 	srv := rpc.NewServer(addr)
-	if err := srv.Up(); err != nil {
-		t.Error(err)
-	}
 
-	if err := srv.Down(); err != nil {
-		t.Error(err)
-	}
+	assert.Nil(t, srv.Up())
+	assert.Nil(t, srv.Down())
 }
 
 func TestServerIdempotency(t *testing.T) {
 	srv := rpc.NewServer(addr)
-	for i := 0; i < 2; i++ {
-		if err := srv.Up(); err != nil {
-			t.Error(err)
-		}
-	}
 
-	for i := 0; i < 2; i++ {
-		if err := srv.Down(); err != nil {
-			t.Error(err)
-		}
-	}
+	assert.Nil(t, srv.Up())
+	assert.Nil(t, srv.Up())
+	assert.Nil(t, srv.Down())
+	assert.Nil(t, srv.Down())
 }
 
 func TestServerRestart(t *testing.T) {
 	srv := rpc.NewServer(addr)
-	if err := srv.Up(); err != nil {
-		t.Error(err)
-	}
 
-	if err := srv.Down(); err != nil {
-		t.Error(err)
-	}
-
-	if err := srv.Up(); err != nil {
-		t.Error(err)
-	}
-
-	if err := srv.Down(); err != nil {
-		t.Error(err)
-	}
+	assert.Nil(t, srv.Up())
+	assert.Nil(t, srv.Down())
+	assert.Nil(t, srv.Up())
+	assert.Nil(t, srv.Down())
 }
 
 func TestServerRegister(t *testing.T) {
 	srv := rpc.NewServer(addr)
-	if err := srv.Register(&RPC{}); err != nil {
-		t.Error(err)
-	}
+
+	assert.Nil(t, srv.Register(&RPC{}))
 }
