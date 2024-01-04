@@ -99,13 +99,12 @@ func (server *Server) Down() error {
 	server.mu.Lock()
 	defer server.mu.Unlock()
 
-	log.Printf("stop listening on %s", server.addr)
-
 	select {
 	case <-server.shutdown:
 		return nil
 	default:
 	}
+	log.Printf("stop listening on %s", server.addr)
 
 	close(server.shutdown)
 	err := server.listener.Close()
