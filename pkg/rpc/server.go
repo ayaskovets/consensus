@@ -54,7 +54,6 @@ func (server *Server) Up() error {
 	select {
 	case <-server.shutdown:
 		server.shutdown = make(chan any)
-		break
 	default:
 		return nil
 	}
@@ -66,8 +65,8 @@ func (server *Server) Up() error {
 	}
 	log.Printf("listening on %s", server.addr)
 
+	server.wg.Add(1)
 	go func() {
-		server.wg.Add(1)
 		defer server.wg.Done()
 		for {
 			conn, err := server.listener.Accept()
@@ -76,15 +75,14 @@ func (server *Server) Up() error {
 				case <-server.shutdown:
 					return
 				default:
-					log.Fatalf("error while accepting on %s", server.addr)
+					log.Fatalf("error while accepting on %s: %s", server.addr, err)
 					return
 				}
 			}
 
+			server.wg.Add(1)
 			go func() {
-				server.wg.Add(1)
 				defer server.wg.Done()
-
 				server.rpc.ServeConn(conn)
 			}()
 		}
@@ -93,8 +91,8 @@ func (server *Server) Up() error {
 	return nil
 }
 
-// Shutdown RPC server
-// Successful call indicates that server can be started again
+// Shutdown RPC server. Blocks until all connections to the server are
+// terminated. Successful call indicates that server can be started again
 //
 // Idempotent. Returns nil if already stopped
 func (server *Server) Down() error {
@@ -107,7 +105,6 @@ func (server *Server) Down() error {
 	case <-server.shutdown:
 		return nil
 	default:
-		break
 	}
 
 	close(server.shutdown)
