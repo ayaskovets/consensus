@@ -1,8 +1,8 @@
 ## This is a simple implementation of the Raft distributed consensus algorithm in Go. Module structure allows to add and test diffrent consensus algorithms
 
 ## Project structure
-```pkg/net```
-- Network package that is based on __net/rpc__. Provides basic client/server types and utilities
+```pkg/rpc```
+- Network package that is based on __net/rpc__. Provides basic RPC client/server types and utilities
 
 ```pkg/node```
 - Peer-to-peer network node implemented with __pkg/net__ tools
