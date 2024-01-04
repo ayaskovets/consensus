@@ -58,7 +58,7 @@ func (raft *Raft) Up() error {
 		return nil
 	}
 
-	log.Printf("%d: start up node", raft.id)
+	log.Printf("%d: start up raft", raft.id)
 
 	go func() {
 		for {
@@ -85,7 +85,7 @@ func (raft *Raft) Down() error {
 		break
 	}
 
-	log.Printf("%d: shutdown node", raft.id)
+	log.Printf("%d: shutdown raft", raft.id)
 
 	raft.electionTimer.Stop()
 	close(raft.shutdown)
