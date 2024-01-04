@@ -21,11 +21,11 @@ func (RPC) Call(Args, *Reply) error {
 func TestServerGracefulShutdown(t *testing.T) {
 	srv := rpc.NewServer(addr)
 	if err := srv.Up(); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 
 	if err := srv.Down(); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 }
 
@@ -33,15 +33,13 @@ func TestServerIdempotency(t *testing.T) {
 	srv := rpc.NewServer(addr)
 	for i := 0; i < 2; i++ {
 		if err := srv.Up(); err != nil {
-			t.Log(err)
-			t.Fail()
+			t.Error(err)
 		}
 	}
 
 	for i := 0; i < 2; i++ {
 		if err := srv.Down(); err != nil {
-			t.Log(err)
-			t.Fail()
+			t.Error(err)
 		}
 	}
 }
@@ -49,25 +47,25 @@ func TestServerIdempotency(t *testing.T) {
 func TestServerRestart(t *testing.T) {
 	srv := rpc.NewServer(addr)
 	if err := srv.Up(); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 
 	if err := srv.Down(); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 
 	if err := srv.Up(); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 
 	if err := srv.Down(); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 }
 
 func TestServerRegister(t *testing.T) {
 	srv := rpc.NewServer(addr)
 	if err := srv.Register(&RPC{}); err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 }
