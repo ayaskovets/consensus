@@ -1,108 +1,49 @@
 package node_test
 
 import (
+	"net"
+	"net/netip"
 	"testing"
 
 	"github.com/ayaskovets/consensus/pkg/node"
+	"github.com/stretchr/testify/assert"
 )
 
+var addr1 = net.TCPAddrFromAddrPort(netip.MustParseAddrPort("127.0.0.1:10001"))
+var addr2 = net.TCPAddrFromAddrPort(netip.MustParseAddrPort("127.0.0.1:10002"))
+
 func TestNodesConnectivity(t *testing.T) {
-	node1 := node.NewNode("127.0.0.1:10001")
-	if err := node1.Up(); err != nil {
-		t.Fatal(err)
-	}
+	node1 := node.NewNode(addr1)
+	node2 := node.NewNode(addr2)
 
-	node2 := node.NewNode("127.0.0.1:10002")
-	if err := node2.Up(); err != nil {
-		t.Log(err)
-		t.Fail()
-	}
-
-	if err := node1.Connect(node2.Addr()); err != nil {
-		t.Log(err)
-		t.Fail()
-	}
-
-	if err := node2.Connect(node1.Addr()); err != nil {
-		t.Log(err)
-		t.Fail()
-	}
-
-	if err := node1.Disconnect(node2.Addr()); err != nil {
-		t.Log(err)
-		t.Fail()
-	}
-
-	if err := node2.Disconnect(node1.Addr()); err != nil {
-		t.Log(err)
-		t.Fail()
-	}
-
-	if err := node2.Down(); err != nil {
-		t.Log(err)
-		t.Fail()
-	}
-
-	if err := node1.Down(); err != nil {
-		t.Fatal(err)
-	}
+	assert.Nil(t, node1.Up())
+	assert.Nil(t, node2.Up())
+	assert.Nil(t, node1.Connect(addr2))
+	assert.Nil(t, node2.Connect(addr1))
+	assert.Nil(t, node1.Disconnect(addr2))
+	assert.Nil(t, node2.Disconnect(addr1))
+	assert.Nil(t, node2.Down())
+	assert.Nil(t, node1.Down())
 }
 
 func TestNodeIdempotency(t *testing.T) {
-	node1 := node.NewNode("127.0.0.1:10001")
-	if err := node1.Up(); err != nil {
-		t.Fatal(err)
-	}
+	node1 := node.NewNode(addr1)
+	node2 := node.NewNode(addr2)
 
-	if err := node1.Up(); err != nil {
-		t.Fatal(err)
-	}
-
-	node2 := node.NewNode("127.0.0.1:10002")
-	for i := 0; i < 2; i++ {
-		if err := node2.Up(); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	for i := 0; i < 2; i++ {
-		if err := node1.Connect(node2.Addr()); err != nil {
-			t.Log(err)
-			t.Fail()
-		}
-	}
-
-	for i := 0; i < 2; i++ {
-		if err := node2.Connect(node1.Addr()); err != nil {
-			t.Log(err)
-			t.Fail()
-		}
-	}
-
-	for i := 0; i < 2; i++ {
-		if err := node1.Disconnect(node2.Addr()); err != nil {
-			t.Log(err)
-			t.Fail()
-		}
-	}
-
-	for i := 0; i < 2; i++ {
-		if err := node2.Disconnect(node1.Addr()); err != nil {
-			t.Log(err)
-			t.Fail()
-		}
-	}
-
-	for i := 0; i < 2; i++ {
-		if err := node2.Down(); err != nil {
-			t.Log(err)
-			t.Fail()
-		}
-	}
-
-	for i := 0; i < 2; i++ {
-		if err := node1.Down(); err != nil {
-			t.Fatal(err)
-		}
-	}
+	assert.Nil(t, node1.Up())
+	assert.Nil(t, node1.Up())
+	assert.Nil(t, node2.Up())
+	assert.Nil(t, node2.Up())
+	assert.Nil(t, node1.Connect(addr2))
+	assert.Nil(t, node1.Connect(addr2))
+	assert.Nil(t, node2.Connect(addr1))
+	assert.Nil(t, node2.Connect(addr1))
+	assert.Nil(t, node1.Disconnect(addr2))
+	assert.Nil(t, node1.Disconnect(addr2))
+	assert.Nil(t, node2.Disconnect(addr1))
+	assert.Nil(t, node2.Disconnect(addr1))
+	assert.Nil(t, node2.Down())
+	assert.Nil(t, node2.Down())
+	assert.Nil(t, node1.Down())
+	assert.Nil(t, node1.Down())
 }
