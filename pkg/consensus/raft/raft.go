@@ -2,7 +2,6 @@ package raft
 
 import (
 	"log"
-	"math/rand"
 	"sync/atomic"
 	"time"
 )
@@ -11,6 +10,8 @@ const (
 	Leader    string = "Leader"
 	Follower  string = "Follower"
 	Candidate string = "Candidate"
+
+	Nobody int = -1
 )
 
 type RaftPeer interface {
@@ -23,28 +24,41 @@ type RaftNode interface {
 	Peers() []RaftPeer
 }
 
-type Raft struct {
-	node RaftNode
+type RaftSettings interface {
+	HeartbeatTimeout() time.Duration
+	ElectionTimeout() time.Duration
+	Majority(peers int) int
+}
 
-	id            int
-	currentTerm   int
-	votedFor      int
-	state         string
-	electionTimer *time.Ticker
+type Raft struct {
+	node     RaftNode
+	settings RaftSettings
+
+	id          int
+	currentTerm int
+	votedFor    int
+	state       string
+
+	heartbeatTimer *time.Ticker
+	electionTimer  *time.Ticker
 
 	shutdown chan any
 }
 
-func NewRaft(id int, node RaftNode) *Raft {
+func NewRaft(id int, node RaftNode, settings RaftSettings) *Raft {
 	raft := Raft{
-		node: node,
+		node:     node,
+		settings: settings,
 
-		id:            id,
-		currentTerm:   0,
-		votedFor:      -1,
-		state:         Follower,
-		electionTimer: time.NewTicker(electionTimeout()),
-		shutdown:      make(chan any),
+		id:          id,
+		currentTerm: 0,
+		votedFor:    Nobody,
+		state:       Follower,
+
+		heartbeatTimer: time.NewTicker(settings.HeartbeatTimeout()),
+		electionTimer:  time.NewTicker(settings.ElectionTimeout()),
+
+		shutdown: make(chan any),
 	}
 	close(raft.shutdown)
 	return &raft
@@ -64,10 +78,16 @@ func (raft *Raft) Up() error {
 		for {
 			select {
 			case <-raft.shutdown:
+				raft.heartbeatTimer.Stop()
 				raft.electionTimer.Stop()
+				return
 			case <-raft.electionTimer.C:
 				if raft.state != Leader {
 					raft.becomeCandidate()
+				}
+			case <-raft.heartbeatTimer.C:
+				if raft.state == Leader {
+					raft.sendHearbeats()
 				}
 			default:
 			}
@@ -92,74 +112,31 @@ func (raft *Raft) Down() error {
 	return nil
 }
 
-func electionTimeout() time.Duration {
-	min := 150
-	max := 300
-	return time.Millisecond * time.Duration(rand.Intn(max-min)+min)
-}
-
-func heartbeatTimeout() time.Duration {
-	min := 140
-	max := 160
-	return time.Millisecond * time.Duration(rand.Intn(max-min)+min)
-}
-
-func (raft *Raft) becomeLeader() {
-	log.Printf("%d: changed state to Leader with term %d", raft.id, raft.currentTerm)
-
-	raft.state = Leader
-
-	go func() {
-		heartbeatTimer := time.NewTicker(heartbeatTimeout())
-		defer heartbeatTimer.Stop()
-		for {
-			<-heartbeatTimer.C
-			for _, peer := range raft.node.Peers() {
-				go func(peer RaftPeer) {
-					args := AppendEntriesArgs{
-						Term:     raft.currentTerm,
-						LeaderId: raft.id,
-					}
-					var reply AppendEntriesReply
-
-					err := peer.AppendEntries(args, &reply)
-					if err != nil {
-						log.Printf("%d: AppendEntries to %s failed: %s", raft.id, peer, err)
-						return
-					}
-
-					if reply.Term > raft.currentTerm {
-						raft.becomeFollower(reply.Term)
-					}
-				}(peer)
+func (raft *Raft) sendHearbeats() {
+	for _, peer := range raft.node.Peers() {
+		go func(peer RaftPeer) {
+			args := AppendEntriesArgs{
+				Term:     raft.currentTerm,
+				LeaderId: raft.id,
 			}
+			var reply AppendEntriesReply
 
-			if raft.state != Leader {
+			if err := peer.AppendEntries(args, &reply); err != nil {
+				log.Printf("%d: AppendEntries to %s failed: %s", raft.id, peer, err)
 				return
 			}
-		}
-	}()
+
+			if reply.Term > raft.currentTerm {
+				raft.becomeFollower(reply.Term)
+			}
+		}(peer)
+	}
 }
 
-func (raft *Raft) becomeFollower(term int) {
-	log.Printf("%d: changed state to Follower with term %d", raft.id, term)
-
-	raft.state = Follower
-	raft.currentTerm = term
-	raft.votedFor = -1
-	raft.electionTimer.Reset(electionTimeout())
-}
-
-func (raft *Raft) becomeCandidate() {
-	log.Printf("%d: changed state to Candidate with term %d -> %d", raft.id, raft.currentTerm, raft.currentTerm+1)
-
-	raft.state = Candidate
-
-	raft.currentTerm += 1
-	raft.votedFor = raft.id
+func (raft *Raft) startElection() {
 	votes := atomic.Int32{}
 	votes.Store(1)
-	majority := len(raft.node.Peers())/2 + 1
+	majority := raft.settings.Majority(len(raft.node.Peers()))
 	for _, peer := range raft.node.Peers() {
 		go func(peer RaftPeer) {
 			args := RequestVoteArgs{
@@ -168,8 +145,7 @@ func (raft *Raft) becomeCandidate() {
 			}
 			var reply RequestVoteReply
 
-			err := peer.RequestVote(args, &reply)
-			if err != nil {
+			if err := peer.RequestVote(args, &reply); err != nil {
 				log.Printf("%d: RequestVote to %s failed: %s", raft.id, peer, err)
 				return
 			}
@@ -193,6 +169,30 @@ func (raft *Raft) becomeCandidate() {
 			}
 		}(peer)
 	}
+}
 
-	raft.electionTimer.Reset(electionTimeout())
+func (raft *Raft) becomeLeader() {
+	log.Printf("%d: changed state to Leader with term %d", raft.id, raft.currentTerm)
+
+	raft.state = Leader
+	raft.heartbeatTimer.Reset(raft.settings.HeartbeatTimeout())
+}
+
+func (raft *Raft) becomeFollower(term int) {
+	log.Printf("%d: changed state to Follower with term %d", raft.id, term)
+
+	raft.state = Follower
+	raft.currentTerm = term
+	raft.votedFor = Nobody
+	raft.electionTimer.Reset(raft.settings.ElectionTimeout())
+}
+
+func (raft *Raft) becomeCandidate() {
+	log.Printf("%d: changed state to Candidate with term %d -> %d", raft.id, raft.currentTerm, raft.currentTerm+1)
+
+	raft.state = Candidate
+	raft.currentTerm += 1
+	raft.votedFor = raft.id
+	raft.startElection()
+	raft.electionTimer.Reset(raft.settings.ElectionTimeout())
 }

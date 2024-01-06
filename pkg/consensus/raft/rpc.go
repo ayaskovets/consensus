@@ -21,7 +21,7 @@ func (raft *Raft) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) err
 		return nil
 	}
 
-	if raft.votedFor != -1 && raft.votedFor != args.CandidateId {
+	if raft.votedFor != Nobody && raft.votedFor != args.CandidateId {
 		reply.Term = raft.currentTerm
 		reply.VoteGranted = false
 		return nil
@@ -56,7 +56,7 @@ func (raft *Raft) AppendEntries(args AppendEntriesArgs, reply *AppendEntriesRepl
 
 	reply.Term = raft.currentTerm
 	reply.Success = true
-	raft.electionTimer.Reset(electionTimeout())
+	raft.electionTimer.Reset(raft.settings.ElectionTimeout())
 
 	return nil
 }
