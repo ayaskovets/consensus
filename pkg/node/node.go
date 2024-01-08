@@ -89,7 +89,7 @@ func (node *Node) Disconnect(addr net.Addr) error {
 		return err
 	}
 
-	delete(node.peers, addr)
+	node.peers[addr] = nil
 	return nil
 }
 
