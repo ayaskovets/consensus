@@ -153,6 +153,11 @@ func (raft *Raft) AppendEntries(args AppendEntriesArgs, reply *AppendEntriesRepl
 	return nil
 }
 
+// Get actual state and current term of the instance
+func (raft *Raft) Info() (string, int) {
+	return raft.state, raft.currentTerm
+}
+
 // Send empty AppendEntries to all peers
 //
 // Switch state to Follower in case there is a peer with a greater term

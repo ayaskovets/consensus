@@ -109,3 +109,27 @@ func WithCluster(t *testing.T, cluster *Cluster) *Cluster {
 
 	return cluster
 }
+
+func GetSingleLeader(t *testing.T, cluster *Cluster) net.Addr {
+	leaders := []net.Addr{}
+
+	for _, node := range cluster.nodes {
+		state, _ := node.raft.Info()
+		if state != raft.Leader {
+			continue
+		}
+
+		leaders = append(leaders, node.node.Addr())
+	}
+
+	switch len(leaders) {
+	case 0:
+		return nil
+	case 1:
+		break
+	default:
+		t.Error("multiple leaders")
+	}
+
+	return leaders[0]
+}
