@@ -2,6 +2,7 @@ package raft
 
 import (
 	"log"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -23,6 +24,7 @@ type Raft struct {
 	settings RaftSettings
 
 	// Raft state
+	mu             sync.RWMutex
 	currentTerm    int
 	votedFor       string
 	state          string
@@ -39,6 +41,7 @@ func NewRaft(node RaftNode, settings RaftSettings) *Raft {
 		node:     node,
 		settings: settings,
 
+		mu:             sync.RWMutex{},
 		currentTerm:    0,
 		votedFor:       Nobody,
 		state:          Follower,
@@ -88,6 +91,9 @@ func (raft *Raft) Up() error {
 
 // Shutdown local Raft instance
 func (raft *Raft) Down() error {
+	raft.mu.Lock()
+	defer raft.mu.Unlock()
+
 	select {
 	case <-raft.shutdown:
 		return nil
@@ -119,9 +125,9 @@ func (raft *Raft) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) err
 		return nil
 	}
 
+	reply.Term = raft.currentTerm
 	reply.VoteGranted = true
 	raft.votedFor = args.CandidateId
-
 	return nil
 }
 
@@ -137,10 +143,13 @@ func (raft *Raft) AppendEntries(args AppendEntriesArgs, reply *AppendEntriesRepl
 		return nil
 	}
 
+	if raft.state == Candidate {
+		raft.becomeFollower(args.Term)
+	}
+
 	reply.Term = raft.currentTerm
 	reply.Success = true
 	raft.electionTimer.Reset(raft.settings.ElectionTimeout())
-
 	return nil
 }
 
@@ -148,10 +157,11 @@ func (raft *Raft) AppendEntries(args AppendEntriesArgs, reply *AppendEntriesRepl
 //
 // Switch state to Follower in case there is a peer with a greater term
 func (raft *Raft) sendHearbeats() {
+	currentTerm := raft.currentTerm
 	for _, peer := range raft.node.Peers() {
 		go func(peer RaftPeer) {
 			args := AppendEntriesArgs{
-				Term:     raft.currentTerm,
+				Term:     currentTerm,
 				LeaderId: raft.node.Id(),
 			}
 			var reply AppendEntriesReply
@@ -161,8 +171,12 @@ func (raft *Raft) sendHearbeats() {
 				return
 			}
 
-			if reply.Term > raft.currentTerm {
+			if reply.Term > currentTerm {
 				raft.becomeFollower(reply.Term)
+			}
+
+			if raft.state != Leader {
+				return
 			}
 		}(peer)
 	}
@@ -177,10 +191,11 @@ func (raft *Raft) startElection() {
 	votes := atomic.Int32{}
 	votes.Store(1)
 	majority := raft.settings.Majority(len(raft.node.Peers()))
+	currentTerm := raft.currentTerm
 	for _, peer := range raft.node.Peers() {
 		go func(peer RaftPeer) {
 			args := RequestVoteArgs{
-				Term:        raft.currentTerm,
+				Term:        currentTerm,
 				CandidateId: raft.node.Id(),
 			}
 			var reply RequestVoteReply
@@ -190,12 +205,12 @@ func (raft *Raft) startElection() {
 				return
 			}
 
-			if raft.state != Candidate {
+			if reply.Term > currentTerm {
+				raft.becomeFollower(reply.Term)
 				return
 			}
 
-			if reply.Term > raft.currentTerm {
-				raft.becomeFollower(reply.Term)
+			if raft.state != Candidate {
 				return
 			}
 
@@ -217,6 +232,8 @@ func (raft *Raft) becomeLeader() {
 	log.Printf("%s: Leader in term %d", raft.node.Id(), raft.currentTerm)
 
 	raft.state = Leader
+	raft.votedFor = Nobody
+	raft.sendHearbeats()
 	raft.heartbeatTimer.Reset(raft.settings.HeartbeatTimeout())
 }
 
