@@ -10,13 +10,16 @@ import (
 
 // Cluster of interconnected localhost nodes
 type Cluster struct {
-	nodes map[net.Addr]RaftNode
+	t     *testing.T
+	alive map[net.Addr]RaftNode
+	dead  map[net.Addr]RaftNode
 }
 
 // Construct new cluster object
 func NewCluster(addrs []net.Addr) *Cluster {
 	cluster := Cluster{
-		nodes: make(map[net.Addr]RaftNode),
+		alive: make(map[net.Addr]RaftNode),
+		dead:  make(map[net.Addr]RaftNode),
 	}
 
 	for _, addr := range addrs {
@@ -27,7 +30,7 @@ func NewCluster(addrs []net.Addr) *Cluster {
 		raftnode.raft = raft.NewRaft(&raftnode, &raftsettings)
 		raftnode.node.Register(raftnode.raft)
 
-		cluster.nodes[addr] = raftnode
+		cluster.alive[addr] = raftnode
 	}
 
 	return &cluster
@@ -37,14 +40,14 @@ func NewCluster(addrs []net.Addr) *Cluster {
 //
 // Any error is propataged to the corresponding testing.T object
 func (cluster *Cluster) Up() error {
-	for _, node := range cluster.nodes {
+	for _, node := range cluster.alive {
 		if err := node.node.Up(); err != nil {
 			return err
 		}
 	}
 
-	for i, node := range cluster.nodes {
-		for j, peer := range cluster.nodes {
+	for i, node := range cluster.alive {
+		for j, peer := range cluster.alive {
 			if i == j {
 				continue
 			}
@@ -55,7 +58,7 @@ func (cluster *Cluster) Up() error {
 		}
 	}
 
-	for _, node := range cluster.nodes {
+	for _, node := range cluster.alive {
 		if err := node.raft.Up(); err != nil {
 			return err
 		}
@@ -68,14 +71,14 @@ func (cluster *Cluster) Up() error {
 //
 // Any error is propataged to the corresponding testing.T object
 func (cluster *Cluster) Down() error {
-	for _, node := range cluster.nodes {
+	for _, node := range cluster.alive {
 		if err := node.raft.Down(); err != nil {
 			return err
 		}
 	}
 
-	for i, node := range cluster.nodes {
-		for j, peer := range cluster.nodes {
+	for i, node := range cluster.alive {
+		for j, peer := range cluster.alive {
 			if i == j {
 				continue
 			}
@@ -86,50 +89,11 @@ func (cluster *Cluster) Down() error {
 		}
 	}
 
-	for _, node := range cluster.nodes {
+	for _, node := range cluster.alive {
 		if err := node.node.Down(); err != nil {
 			return err
 		}
 	}
 
 	return nil
-}
-
-// Start the provided cluster and auto-cleanup at the end of the test
-func WithCluster(t *testing.T, cluster *Cluster) *Cluster {
-	t.Cleanup(func() {
-		if err := cluster.Down(); err != nil {
-			t.Error(err)
-		}
-	})
-
-	if err := cluster.Up(); err != nil {
-		t.Error(err)
-	}
-
-	return cluster
-}
-
-func GetSingleLeader(t *testing.T, cluster *Cluster) net.Addr {
-	leaders := []net.Addr{}
-
-	for _, node := range cluster.nodes {
-		state, _ := node.raft.Info()
-		if state != raft.Leader {
-			continue
-		}
-
-		leaders = append(leaders, node.node.Addr())
-	}
-
-	switch len(leaders) {
-	case 0:
-		return nil
-	case 1:
-		break
-	default:
-		t.Error("multiple leaders")
-	}
-
-	return leaders[0]
 }

@@ -43,8 +43,23 @@ func TestIdempotency(t *testing.T) {
 }
 
 func TestSingleLeader(t *testing.T) {
-	cluster := test.WithCluster(t, test.NewCluster(addrs))
+	cluster := test.WithCluster(t, addrs)
 
-	time.Sleep(time.Millisecond * 350)
-	assert.NotNil(t, test.GetSingleLeader(t, cluster))
+	cluster.WaitElection()
+	leader, _ := cluster.GetSingleLeader()
+	assert.NotNil(t, leader)
+}
+
+func TestLeaderDisconnect(t *testing.T) {
+	cluster := test.WithCluster(t, addrs)
+
+	cluster.WaitElection()
+	leader, term := cluster.GetSingleLeader()
+	assert.NotNil(t, leader)
+
+	cluster.Disconnect(leader)
+	cluster.WaitElection()
+	newLeader, newTerm := cluster.GetSingleLeader()
+	assert.NotEqual(t, newLeader, leader)
+	assert.Greater(t, newTerm, term)
 }
