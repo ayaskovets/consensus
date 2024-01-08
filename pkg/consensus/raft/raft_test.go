@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"net"
 	"net/netip"
+	"strconv"
 	"testing"
 	"time"
 
@@ -13,12 +14,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var addrs = []net.Addr{
-	net.TCPAddrFromAddrPort(netip.MustParseAddrPort("127.0.0.1:10001")),
-	net.TCPAddrFromAddrPort(netip.MustParseAddrPort("127.0.0.1:10002")),
-	net.TCPAddrFromAddrPort(netip.MustParseAddrPort("127.0.0.1:10003")),
-	net.TCPAddrFromAddrPort(netip.MustParseAddrPort("127.0.0.1:10004")),
-	net.TCPAddrFromAddrPort(netip.MustParseAddrPort("127.0.0.1:10005")),
+func addrs(n int) []net.Addr {
+	addrs := []net.Addr{}
+	for i := 0; i < n; i++ {
+		addr := "127.0.0.1:" + strconv.Itoa(10000+i)
+		addrs = append(addrs, net.TCPAddrFromAddrPort(netip.MustParseAddrPort(addr)))
+	}
+	return addrs
 }
 
 func init() {
@@ -43,7 +45,7 @@ func TestIdempotency(t *testing.T) {
 }
 
 func TestSingleLeader(t *testing.T) {
-	cluster := test.WithCluster(t, addrs)
+	cluster := test.WithCluster(t, addrs(5))
 
 	cluster.WaitElection()
 	leader, _ := cluster.GetSingleLeader()
@@ -51,7 +53,7 @@ func TestSingleLeader(t *testing.T) {
 }
 
 func TestLeaderDisconnect(t *testing.T) {
-	cluster := test.WithCluster(t, addrs)
+	cluster := test.WithCluster(t, addrs(5))
 
 	cluster.WaitElection()
 	leader, term := cluster.GetSingleLeader()
@@ -62,4 +64,23 @@ func TestLeaderDisconnect(t *testing.T) {
 	newLeader, newTerm := cluster.GetSingleLeader()
 	assert.NotEqual(t, newLeader, leader)
 	assert.Greater(t, newTerm, term)
+}
+
+func TestNoQuorum(t *testing.T) {
+	cluster := test.WithCluster(t, addrs(3))
+
+	cluster.WaitElection()
+	leader, term := cluster.GetSingleLeader()
+	assert.NotNil(t, leader)
+
+	cluster.Disconnect(leader)
+	cluster.WaitElection()
+	newLeader, newTerm := cluster.GetSingleLeader()
+	assert.NotEqual(t, newLeader, leader)
+	assert.Greater(t, newTerm, term)
+
+	cluster.Disconnect(newLeader)
+	cluster.WaitElection()
+	noLeader, _ := cluster.GetSingleLeader()
+	assert.Nil(t, noLeader)
 }
