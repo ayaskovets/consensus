@@ -3,13 +3,16 @@ package node
 import (
 	"fmt"
 	"net"
+	"sync"
 
 	"github.com/ayaskovets/consensus/pkg/rpc"
 )
 
 // Consensus-independent node in a peer-to-peer network
 type Node struct {
-	addr   net.Addr
+	addr net.Addr
+
+	mu     sync.Mutex
 	server *rpc.Server
 	peers  map[net.Addr]*rpc.Client
 }
@@ -17,7 +20,9 @@ type Node struct {
 // Construct new node object
 func NewNode(addr net.Addr) *Node {
 	return &Node{
-		addr:   addr,
+		addr: addr,
+
+		mu:     sync.Mutex{},
 		server: rpc.NewServer(addr),
 		peers:  make(map[net.Addr]*rpc.Client),
 	}
@@ -30,6 +35,9 @@ func (node *Node) Addr() net.Addr {
 
 // Returns peers addresses
 func (node *Node) Peers() []net.Addr {
+	node.mu.Lock()
+	defer node.mu.Unlock()
+
 	peers := make([]net.Addr, 0, len(node.peers))
 	for addr := range node.peers {
 		peers = append(peers, addr)
@@ -40,6 +48,9 @@ func (node *Node) Peers() []net.Addr {
 // Register rcvr object as RPC receiver.
 // Having multiple receivers of different types is allowed
 func (node *Node) Register(rcvr any) error {
+	node.mu.Lock()
+	defer node.mu.Unlock()
+
 	return node.server.Register(rcvr)
 }
 
@@ -48,6 +59,9 @@ func (node *Node) Register(rcvr any) error {
 //
 // Idempotent. Returns nil if already connected
 func (node *Node) Connect(addr net.Addr) error {
+	node.mu.Lock()
+	defer node.mu.Unlock()
+
 	if peer := node.peers[addr]; peer != nil {
 		return nil
 	}
@@ -66,6 +80,9 @@ func (node *Node) Connect(addr net.Addr) error {
 //
 // Idempotent. Returns nil if already disconnected
 func (node *Node) Disconnect(addr net.Addr) error {
+	node.mu.Lock()
+	defer node.mu.Unlock()
+
 	peer := node.peers[addr]
 	if peer == nil {
 		return nil
@@ -87,6 +104,9 @@ func (node *Node) Up() error {
 
 // Invoke RPC method on the peer
 func (node *Node) Call(addr net.Addr, serviceMethod string, args any, reply any) error {
+	node.mu.Lock()
+	defer node.mu.Unlock()
+
 	peer := node.peers[addr]
 	if peer == nil {
 		return fmt.Errorf("not connected to %s", addr)
