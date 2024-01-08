@@ -8,10 +8,12 @@ import (
 	"github.com/ayaskovets/consensus/pkg/node"
 )
 
+// Cluster of interconnected localhost nodes
 type Cluster struct {
 	nodes map[net.Addr]RaftNode
 }
 
+// Construct new cluster object
 func NewCluster(addrs []net.Addr) *Cluster {
 	cluster := Cluster{
 		nodes: make(map[net.Addr]RaftNode),
@@ -31,6 +33,9 @@ func NewCluster(addrs []net.Addr) *Cluster {
 	return &cluster
 }
 
+// Connect nodes to each other and start servers then consensus
+//
+// Any error is propataged to the corresponding testing.T object
 func (cluster *Cluster) Up() error {
 	for _, node := range cluster.nodes {
 		if err := node.node.Up(); err != nil {
@@ -59,6 +64,9 @@ func (cluster *Cluster) Up() error {
 	return nil
 }
 
+// Disconnect nodes from each other and shutdown consensus then servers
+//
+// Any error is propataged to the corresponding testing.T object
 func (cluster *Cluster) Down() error {
 	for _, node := range cluster.nodes {
 		if err := node.raft.Down(); err != nil {
@@ -87,6 +95,7 @@ func (cluster *Cluster) Down() error {
 	return nil
 }
 
+// Start the provided cluster and auto-cleanup at the end of the test
 func WithCluster(t *testing.T, cluster *Cluster) *Cluster {
 	t.Cleanup(func() {
 		if err := cluster.Down(); err != nil {

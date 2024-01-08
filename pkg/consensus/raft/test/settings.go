@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+// Customizable Raft settings
 type RaftSettings struct {
 }
 

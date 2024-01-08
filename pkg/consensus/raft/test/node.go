@@ -7,6 +7,7 @@ import (
 	"github.com/ayaskovets/consensus/pkg/node"
 )
 
+// Local Raft node implementation
 type RaftNode struct {
 	node *node.Node
 	raft *raft.Raft
@@ -23,4 +24,15 @@ func (node *RaftNode) Peers() []raft.RaftPeer {
 		peers = append(peers, &RaftPeer{addr: addr, node: node.node})
 	}
 	return peers
+}
+
+type MockRaftNode struct {
+}
+
+func (node *MockRaftNode) Id() string {
+	return "mockId"
+}
+
+func (node *MockRaftNode) Peers() []raft.RaftPeer {
+	return []raft.RaftPeer{}
 }

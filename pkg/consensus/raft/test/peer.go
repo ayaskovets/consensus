@@ -8,6 +8,7 @@ import (
 	"github.com/ayaskovets/consensus/pkg/node"
 )
 
+// Remote Raft node implementation
 type RaftPeer struct {
 	addr net.Addr
 	node *node.Node
