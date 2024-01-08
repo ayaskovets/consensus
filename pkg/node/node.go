@@ -10,21 +10,21 @@ import (
 
 // Consensus-independent node in a peer-to-peer network
 type Node struct {
-	addr net.Addr
-
-	mu     sync.Mutex
+	addr   net.Addr
 	server *rpc.Server
-	peers  map[net.Addr]*rpc.Client
+
+	mu    sync.RWMutex
+	peers map[net.Addr]*rpc.Client
 }
 
 // Construct new node object
 func NewNode(addr net.Addr) *Node {
 	return &Node{
-		addr: addr,
-
-		mu:     sync.Mutex{},
+		addr:   addr,
 		server: rpc.NewServer(addr),
-		peers:  make(map[net.Addr]*rpc.Client),
+
+		mu:    sync.RWMutex{},
+		peers: make(map[net.Addr]*rpc.Client),
 	}
 }
 
@@ -35,8 +35,8 @@ func (node *Node) Addr() net.Addr {
 
 // Returns peers addresses
 func (node *Node) Peers() []net.Addr {
-	node.mu.Lock()
-	defer node.mu.Unlock()
+	node.mu.RLock()
+	defer node.mu.RUnlock()
 
 	peers := make([]net.Addr, 0, len(node.peers))
 	for addr := range node.peers {
@@ -48,9 +48,6 @@ func (node *Node) Peers() []net.Addr {
 // Register rcvr object as RPC receiver.
 // Having multiple receivers of different types is allowed
 func (node *Node) Register(rcvr any) error {
-	node.mu.Lock()
-	defer node.mu.Unlock()
-
 	return node.server.Register(rcvr)
 }
 
@@ -104,8 +101,8 @@ func (node *Node) Up() error {
 
 // Invoke RPC method on the peer
 func (node *Node) Call(addr net.Addr, serviceMethod string, args any, reply any) error {
-	node.mu.Lock()
-	defer node.mu.Unlock()
+	node.mu.RLock()
+	defer node.mu.RUnlock()
 
 	peer := node.peers[addr]
 	if peer == nil {
