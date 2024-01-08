@@ -5,22 +5,20 @@ import (
 	"log"
 	"net"
 	"net/rpc"
-	"sync"
+	"sync/atomic"
 )
 
 // Wrapper for RPC client
 type Client struct {
 	addr net.Addr
-
-	mu  sync.Mutex
-	rpc *rpc.Client
+	rpc  atomic.Pointer[rpc.Client]
 }
 
 // Construct new client object
 func NewClient(addr net.Addr) *Client {
 	return &Client{
 		addr: addr,
-		rpc:  nil,
+		rpc:  atomic.Pointer[rpc.Client]{},
 	}
 }
 
@@ -30,17 +28,15 @@ func NewClient(addr net.Addr) *Client {
 // Idempotent. Returns nil if already connected. Each call to this function
 // must be followed by a corresponding disconnect.
 func (client *Client) Connect() error {
-	client.mu.Lock()
-	defer client.mu.Unlock()
-
-	if client.rpc != nil {
+	if client.rpc.Load() != nil {
 		return nil
 	}
 
-	var err error
-	if client.rpc, err = rpc.Dial(client.addr.Network(), client.addr.String()); err != nil {
+	client_rpc, err := rpc.Dial(client.addr.Network(), client.addr.String())
+	if err != nil {
 		return err
 	}
+	client.rpc.Store(client_rpc)
 
 	log.Printf("connected to %s", client.addr)
 	return nil
@@ -48,27 +44,26 @@ func (client *Client) Connect() error {
 
 // Invoke RPC method
 func (client *Client) Call(serviceMethod string, args any, reply any) error {
-	if client.rpc == nil {
+	client_rpc := client.rpc.Load()
+	if client_rpc == nil {
 		return fmt.Errorf("uninitialized connection to %s", client.addr)
 	}
-	return client.rpc.Call(serviceMethod, args, reply)
+	return client_rpc.Call(serviceMethod, args, reply)
 }
 
 // Disconnect from RPC server.
 //
 // Idempotent. Returns nil if already disconnected
 func (client *Client) Disconnect() error {
-	client.mu.Lock()
-	defer client.mu.Unlock()
-
-	if client.rpc == nil {
+	client_rpc := client.rpc.Load()
+	if client_rpc == nil {
 		return nil
 	}
 
-	if err := client.rpc.Close(); err != nil {
+	if err := client_rpc.Close(); err != nil {
 		return err
 	}
-	client.rpc = nil
+	client.rpc.Store(nil)
 
 	log.Printf("disconnected from %s", client.addr)
 	return nil
