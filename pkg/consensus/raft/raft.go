@@ -7,44 +7,79 @@ import (
 )
 
 const (
+	// State of Raft instance
 	Leader    string = "Leader"
 	Follower  string = "Follower"
 	Candidate string = "Candidate"
 
+	// Special value for no vote
 	Nobody int = -1
 )
 
+// RequestVote RPC args
+type RequestVoteArgs struct {
+	Term        int
+	CandidateId int
+}
+
+// RequestVote RPC reply
+type RequestVoteReply struct {
+	Term        int
+	VoteGranted bool
+}
+
+// AppendEntries RPC args
+type AppendEntriesArgs struct {
+	Term     int
+	LeaderId int
+}
+
+// AppendEntries RPC reply
+type AppendEntriesReply struct {
+	Term    int
+	Success bool
+}
+
+// Remote Raft instance interface
 type RaftPeer interface {
 	RequestVote(args RequestVoteArgs, reply *RequestVoteReply) error
 	AppendEntries(args AppendEntriesArgs, reply *AppendEntriesReply) error
 	String() string
 }
 
+// Customizable network topology info provider for local Raft instance
 type RaftNode interface {
 	Peers() []RaftPeer
 }
 
+// Customizable static-ish settings and configuration for local Raft instance
 type RaftSettings interface {
 	HeartbeatTimeout() time.Duration
 	ElectionTimeout() time.Duration
 	Majority(peers int) int
 }
 
+// Local Raft instance state
 type Raft struct {
+	// Communication with peers and configuration
 	node     RaftNode
 	settings RaftSettings
 
+	// Raft state
 	id          int
 	currentTerm int
 	votedFor    int
 	state       string
 
+	// Event triggers
 	heartbeatTimer *time.Ticker
 	electionTimer  *time.Ticker
 
+	// Shutdown channel
 	shutdown chan any
 }
 
+// Construct new Raft object
 func NewRaft(id int, node RaftNode, settings RaftSettings) *Raft {
 	raft := Raft{
 		node:     node,
@@ -64,6 +99,8 @@ func NewRaft(id int, node RaftNode, settings RaftSettings) *Raft {
 	return &raft
 }
 
+// Start up local Raft instance.
+// Non-blocking
 func (raft *Raft) Up() error {
 	select {
 	case <-raft.shutdown:
@@ -97,6 +134,7 @@ func (raft *Raft) Up() error {
 	return nil
 }
 
+// Shutdown local Raft instance
 func (raft *Raft) Down() error {
 	select {
 	case <-raft.shutdown:
@@ -107,11 +145,56 @@ func (raft *Raft) Down() error {
 
 	log.Printf("%d: shutdown raft", raft.id)
 
-	raft.electionTimer.Stop()
 	close(raft.shutdown)
 	return nil
 }
 
+// RequestVote RPC handler
+func (raft *Raft) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) error {
+	if args.Term > raft.currentTerm {
+		raft.becomeFollower(args.Term)
+	}
+
+	if args.Term < raft.currentTerm {
+		reply.Term = raft.currentTerm
+		reply.VoteGranted = false
+		return nil
+	}
+
+	if raft.votedFor != Nobody && raft.votedFor != args.CandidateId {
+		reply.Term = raft.currentTerm
+		reply.VoteGranted = false
+		return nil
+	}
+
+	reply.VoteGranted = true
+	raft.votedFor = args.CandidateId
+
+	return nil
+}
+
+// AppendEntries RPC handler
+func (raft *Raft) AppendEntries(args AppendEntriesArgs, reply *AppendEntriesReply) error {
+	if args.Term > raft.currentTerm {
+		raft.becomeFollower(args.Term)
+	}
+
+	if args.Term < raft.currentTerm {
+		reply.Term = raft.currentTerm
+		reply.Success = false
+		return nil
+	}
+
+	reply.Term = raft.currentTerm
+	reply.Success = true
+	raft.electionTimer.Reset(raft.settings.ElectionTimeout())
+
+	return nil
+}
+
+// Send empty AppendEntries to all peers
+//
+// Switch state to Follower in case there is a peer with a greater term
 func (raft *Raft) sendHearbeats() {
 	for _, peer := range raft.node.Peers() {
 		go func(peer RaftPeer) {
@@ -133,6 +216,11 @@ func (raft *Raft) sendHearbeats() {
 	}
 }
 
+// Send RequestVode to all peers
+//
+// Upon receiving the configured majority of votes, become Leader. If election
+// fails with no majority, restart it after the next timeout.
+// Switch state to Follower in case there is a peer with a greater term
 func (raft *Raft) startElection() {
 	votes := atomic.Int32{}
 	votes.Store(1)
@@ -155,7 +243,6 @@ func (raft *Raft) startElection() {
 			}
 
 			if reply.Term > raft.currentTerm {
-				log.Printf("%d: got request vote reply from %s with term %d > %d", raft.id, peer, reply.Term, raft.currentTerm)
 				raft.becomeFollower(reply.Term)
 				return
 			}
@@ -171,15 +258,22 @@ func (raft *Raft) startElection() {
 	}
 }
 
+// Switch state to Leader
+//
+// Enable heartbeats while in Leader state
 func (raft *Raft) becomeLeader() {
-	log.Printf("%d: changed state to Leader with term %d", raft.id, raft.currentTerm)
+	log.Printf("%d: state=Leader term=%d", raft.id, raft.currentTerm)
 
 	raft.state = Leader
 	raft.heartbeatTimer.Reset(raft.settings.HeartbeatTimeout())
 }
 
+// Switch state to Follower
+//
+// Usually Follower state is applied when there is an instance with a greater
+// term. The term is provided as an argument
 func (raft *Raft) becomeFollower(term int) {
-	log.Printf("%d: changed state to Follower with term %d", raft.id, term)
+	log.Printf("%d: state=Follower term=%d", raft.id, term)
 
 	raft.state = Follower
 	raft.currentTerm = term
@@ -187,8 +281,12 @@ func (raft *Raft) becomeFollower(term int) {
 	raft.electionTimer.Reset(raft.settings.ElectionTimeout())
 }
 
+// Switch state to Candidate
+//
+// Triggered upon a heartbeat timeout from the current Leader.
+// Increase current term and start a new election voting for self
 func (raft *Raft) becomeCandidate() {
-	log.Printf("%d: changed state to Candidate with term %d -> %d", raft.id, raft.currentTerm, raft.currentTerm+1)
+	log.Printf("%d: state=Candidate term=%d", raft.id, raft.currentTerm+1)
 
 	raft.state = Candidate
 	raft.currentTerm += 1
