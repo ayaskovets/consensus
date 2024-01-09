@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var addr = net.TCPAddrFromAddrPort(netip.MustParseAddrPort("127.0.0.1:10000"))
+var addr = net.TCPAddrFromAddrPort(netip.MustParseAddrPort("127.0.0.1:10030"))
 
 type RPC struct{}
 type Args struct{}

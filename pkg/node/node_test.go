@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var addr1 = net.TCPAddrFromAddrPort(netip.MustParseAddrPort("127.0.0.1:10001"))
-var addr2 = net.TCPAddrFromAddrPort(netip.MustParseAddrPort("127.0.0.1:10002"))
+var addr1 = net.TCPAddrFromAddrPort(netip.MustParseAddrPort("127.0.0.1:10010"))
+var addr2 = net.TCPAddrFromAddrPort(netip.MustParseAddrPort("127.0.0.1:10011"))
 
 func TestNodesConnectivity(t *testing.T) {
 	node1 := node.NewNode(addr1)
