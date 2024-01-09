@@ -9,17 +9,18 @@ import (
 )
 
 // Cluster of interconnected localhost nodes
-type Cluster struct {
-	t     *testing.T
-	alive map[net.Addr]RaftNode
-	dead  map[net.Addr]RaftNode
+type cluster struct {
+	t            *testing.T
+	connected    map[net.Addr]RaftNode
+	disconnected map[net.Addr]RaftNode
 }
 
 // Construct new cluster object
-func NewCluster(addrs []net.Addr) *Cluster {
-	cluster := Cluster{
-		alive: make(map[net.Addr]RaftNode),
-		dead:  make(map[net.Addr]RaftNode),
+func newCluster(addrs []net.Addr) *cluster {
+	cluster := cluster{
+		t:            nil,
+		connected:    make(map[net.Addr]RaftNode),
+		disconnected: make(map[net.Addr]RaftNode),
 	}
 
 	for _, addr := range addrs {
@@ -30,7 +31,7 @@ func NewCluster(addrs []net.Addr) *Cluster {
 		raftnode.raft = raft.NewRaft(&raftnode, &raftsettings)
 		raftnode.node.Register(raftnode.raft)
 
-		cluster.alive[addr] = raftnode
+		cluster.connected[addr] = raftnode
 	}
 
 	return &cluster
@@ -39,15 +40,15 @@ func NewCluster(addrs []net.Addr) *Cluster {
 // Connect nodes to each other and start servers then consensus
 //
 // Any error is propataged to the corresponding testing.T object
-func (cluster *Cluster) Up() error {
-	for _, node := range cluster.alive {
+func (cluster *cluster) up() error {
+	for _, node := range cluster.connected {
 		if err := node.node.Up(); err != nil {
 			return err
 		}
 	}
 
-	for i, node := range cluster.alive {
-		for j, peer := range cluster.alive {
+	for i, node := range cluster.connected {
+		for j, peer := range cluster.connected {
 			if i == j {
 				continue
 			}
@@ -58,7 +59,7 @@ func (cluster *Cluster) Up() error {
 		}
 	}
 
-	for _, node := range cluster.alive {
+	for _, node := range cluster.connected {
 		if err := node.raft.Up(); err != nil {
 			return err
 		}
@@ -70,15 +71,24 @@ func (cluster *Cluster) Up() error {
 // Disconnect nodes from each other and shutdown consensus then servers
 //
 // Any error is propataged to the corresponding testing.T object
-func (cluster *Cluster) Down() error {
-	for _, node := range cluster.alive {
+func (cluster *cluster) down() error {
+	for _, node := range cluster.disconnected {
+		if err := node.node.Down(); err != nil {
+			return err
+		}
 		if err := node.raft.Down(); err != nil {
 			return err
 		}
 	}
 
-	for i, node := range cluster.alive {
-		for j, peer := range cluster.alive {
+	for _, node := range cluster.connected {
+		if err := node.raft.Down(); err != nil {
+			return err
+		}
+	}
+
+	for i, node := range cluster.connected {
+		for j, peer := range cluster.connected {
 			if i == j {
 				continue
 			}
@@ -89,7 +99,7 @@ func (cluster *Cluster) Down() error {
 		}
 	}
 
-	for _, node := range cluster.alive {
+	for _, node := range cluster.connected {
 		if err := node.node.Down(); err != nil {
 			return err
 		}

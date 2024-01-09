@@ -14,6 +14,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func init() {
+	rand.Seed(time.Millisecond.Nanoseconds())
+	log.SetFlags(log.Lmicroseconds)
+}
+
 func addrs(n int) []net.Addr {
 	addrs := []net.Addr{}
 	for i := 0; i < n; i++ {
@@ -21,11 +26,6 @@ func addrs(n int) []net.Addr {
 		addrs = append(addrs, net.TCPAddrFromAddrPort(netip.MustParseAddrPort(addr)))
 	}
 	return addrs
-}
-
-func init() {
-	rand.Seed(time.Millisecond.Nanoseconds())
-	log.SetFlags(log.Lmicroseconds)
 }
 
 func TestRestart(t *testing.T) {
@@ -47,40 +47,64 @@ func TestIdempotency(t *testing.T) {
 func TestSingleLeader(t *testing.T) {
 	cluster := test.WithCluster(t, addrs(5))
 
-	cluster.WaitElection()
-	leader, _ := cluster.GetSingleLeader()
-	assert.NotNil(t, leader)
+	// Assert that a single leader is elected
+	state1 := cluster.WaitElection().GetState()
+	assert.NotNil(t, state1.Leader)
 }
 
 func TestLeaderDisconnect(t *testing.T) {
 	cluster := test.WithCluster(t, addrs(5))
 
-	cluster.WaitElection()
-	leader, term := cluster.GetSingleLeader()
-	assert.NotNil(t, leader)
+	// Assert that a single leader is elected
+	state1 := cluster.WaitElection().GetState()
+	assert.NotNil(t, state1.Leader)
 
-	cluster.Disconnect(leader)
-	cluster.WaitElection()
-	newLeader, newTerm := cluster.GetSingleLeader()
-	assert.NotEqual(t, newLeader, leader)
-	assert.Greater(t, newTerm, term)
+	// Assert that after the leader is down a new leader is elected
+	state2 := cluster.Disconnect(state1.Leader).WaitElection().GetState()
+	assert.NotEqual(t, state2.Leader, state1.Leader)
+	assert.Greater(t, state2.Term, state1.Term)
 }
 
 func TestNoQuorum(t *testing.T) {
 	cluster := test.WithCluster(t, addrs(3))
 
-	cluster.WaitElection()
-	leader, term := cluster.GetSingleLeader()
-	assert.NotNil(t, leader)
+	// Assert that a single leader is elected
+	state1 := cluster.WaitElection().GetState()
+	assert.NotNil(t, state1.Leader)
 
-	cluster.Disconnect(leader)
-	cluster.WaitElection()
-	newLeader, newTerm := cluster.GetSingleLeader()
-	assert.NotEqual(t, newLeader, leader)
-	assert.Greater(t, newTerm, term)
+	// Assert that after the leader is down a new leader is elected
+	state2 := cluster.Disconnect(state1.Leader).WaitElection().GetState()
+	assert.NotEqual(t, state2.Leader, state1.Leader)
+	assert.Greater(t, state2.Term, state1.Term)
 
-	cluster.Disconnect(newLeader)
-	cluster.WaitElection()
-	noLeader, _ := cluster.GetSingleLeader()
-	assert.Nil(t, noLeader)
+	// Assert that for 1/3 alive nodes there is no elected leader
+	state3 := cluster.Disconnect(state2.Leader).WaitElection().GetState()
+	assert.Nil(t, state3.Leader)
+}
+
+func TestNoQuorumReconnect(t *testing.T) {
+	cluster := test.WithCluster(t, addrs(3))
+
+	// Assert that a single leader is elected
+	state1 := cluster.WaitElection().GetState()
+	assert.NotNil(t, state1.Leader)
+
+	// Assert that after the leader is down a new leader is elected
+	state2 := cluster.Disconnect(state1.Leader).WaitElection().GetState()
+	assert.NotEqual(t, state2.Leader, state1.Leader)
+	assert.Greater(t, state2.Term, state1.Term)
+
+	// Assert that for 1/3 alive nodes there is no elected leader
+	state3 := cluster.Disconnect(state2.Leader).WaitElection().GetState()
+	assert.Nil(t, state3.Leader)
+
+	// Assert that for 2/3 alive nodes after the reconnect a new leader is elected
+	state4 := cluster.Reconnect(state2.Leader).WaitElection().GetState()
+	assert.NotNil(t, state4.Leader)
+	assert.Greater(t, state4.Term, state3.Term)
+
+	// Assert that after all nodes come back there is still a single leader
+	state5 := cluster.Reconnect(state1.Leader).WaitElection().GetState()
+	assert.NotNil(t, state5.Leader)
+	assert.GreaterOrEqual(t, state4.Term, state3.Term)
 }

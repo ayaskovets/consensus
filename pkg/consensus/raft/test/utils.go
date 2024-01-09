@@ -9,90 +9,38 @@ import (
 )
 
 // Start new cluster and auto-cleanup at the end of the test
-func WithCluster(t *testing.T, addrs []net.Addr) *Cluster {
-	cluster := NewCluster(addrs)
+func WithCluster(t *testing.T, addrs []net.Addr) *cluster {
+	cluster := newCluster(addrs)
 	cluster.t = t
 
 	t.Cleanup(func() {
-		if err := cluster.Down(); err != nil {
+		if err := cluster.down(); err != nil {
 			t.Error(err)
 		}
 	})
 
-	if err := cluster.Up(); err != nil {
+	if err := cluster.up(); err != nil {
 		t.Error(err)
 	}
 
 	return cluster
 }
 
-// Return addr of the single leader of the cluster and its term
-func (cluster *Cluster) GetSingleLeader() (net.Addr, int) {
-	leaders := []RaftNode{}
-	for _, node := range cluster.alive {
-		if state, _ := node.raft.Info(); state != raft.Leader {
-			continue
-		}
-
-		leaders = append(leaders, node)
-	}
-
-	switch len(leaders) {
-	case 0:
-		return nil, 0
-	case 1:
-		break
-	default:
-		cluster.t.Error("multiple leaders")
-	}
-
-	_, term := leaders[0].raft.Info()
-	return leaders[0].node.Addr(), term
-}
-
-// Resume RPC communication to and from the node with the provided addr
-// i.e. make it seem like the node is back up again
-func (cluster *Cluster) Connect(addr net.Addr) {
-	node, ok := cluster.dead[addr]
-	if ok == true {
-		return
-	}
-
-	for _, peer := range cluster.alive {
-		if err := node.node.Connect(peer.node.Addr()); err != nil {
-			cluster.t.Error(err)
-		}
-	}
-
-	for _, node := range cluster.alive {
-		if node.node.Addr() == addr {
-			continue
-		}
-
-		if err := node.node.Connect(addr); err != nil {
-			cluster.t.Error(err)
-		}
-	}
-
-	cluster.alive[addr] = node
-	delete(cluster.dead, addr)
-}
-
 // Shut down all RPC communication with the node with the provided addr
-// i.e. make it seem like the node is down
-func (cluster *Cluster) Disconnect(addr net.Addr) {
-	node, ok := cluster.alive[addr]
+// i.e. make it seem like the node is partitioned
+func (cluster *cluster) Disconnect(addr net.Addr) *cluster {
+	node, ok := cluster.connected[addr]
 	if ok == false {
-		return
+		return cluster
 	}
 
-	for _, peer := range cluster.alive {
+	for _, peer := range cluster.connected {
 		if err := node.node.Disconnect(peer.node.Addr()); err != nil {
 			cluster.t.Error(err)
 		}
 	}
 
-	for _, node := range cluster.alive {
+	for _, node := range cluster.connected {
 		if node.node.Addr() == addr {
 			continue
 		}
@@ -102,11 +50,83 @@ func (cluster *Cluster) Disconnect(addr net.Addr) {
 		}
 	}
 
-	cluster.dead[addr] = node
-	delete(cluster.alive, addr)
+	cluster.disconnected[addr] = node
+	delete(cluster.connected, addr)
+
+	return cluster
 }
 
-func (cluster *Cluster) WaitElection() {
+// Resume RPC communication to and from the node with the provided addr
+// i.e. make it seem like the node is network-reachable again
+func (cluster *cluster) Reconnect(addr net.Addr) *cluster {
+	node, ok := cluster.disconnected[addr]
+	if ok == false {
+		return cluster
+	}
+
+	for _, peer := range cluster.connected {
+		if err := node.node.Connect(peer.node.Addr()); err != nil {
+			cluster.t.Error(err)
+		}
+	}
+
+	for _, node := range cluster.connected {
+		if node.node.Addr() == addr {
+			continue
+		}
+
+		if err := node.node.Connect(addr); err != nil {
+			cluster.t.Error(err)
+		}
+	}
+
+	cluster.connected[addr] = node
+	delete(cluster.disconnected, addr)
+
+	return cluster
+}
+
+// Wait for the next election (approximately)
+func (cluster *cluster) WaitElection() *cluster {
 	settings := RaftSettings{}
-	time.Sleep(settings.ElectionTimeout() * 3)
+	time.Sleep(settings.ElectionTimeout() * 4)
+
+	return cluster
+}
+
+type ClusterState struct {
+	Leaders    int
+	Followers  int
+	Candidates int
+
+	Leader net.Addr
+	Term   int
+}
+
+// Return addr of the single leader of the cluster and its term.
+func (cluster *cluster) GetState() ClusterState {
+	info := ClusterState{}
+	for _, node := range cluster.connected {
+		state, term := node.raft.Info()
+
+		if state == raft.Leader {
+			info.Leaders++
+
+			if info.Leader != nil {
+				cluster.t.Error("multiple leaders")
+			}
+
+			info.Leader = node.node.Addr()
+			info.Term = term
+		}
+
+		if state != raft.Follower {
+			info.Followers++
+		}
+
+		if state != raft.Candidate {
+			info.Candidates++
+		}
+	}
+	return info
 }
