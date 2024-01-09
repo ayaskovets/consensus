@@ -95,12 +95,10 @@ func (cluster *cluster) WaitElection() *cluster {
 }
 
 type ClusterState struct {
-	Leaders    int
-	Followers  int
-	Candidates int
-
-	Leader net.Addr
-	Term   int
+	Leader     net.Addr
+	Term       int
+	Followers  []net.Addr
+	Candidates []net.Addr
 }
 
 // Return addr of the single leader of the cluster and its term.
@@ -110,8 +108,6 @@ func (cluster *cluster) GetState() ClusterState {
 		state, term := node.raft.Info()
 
 		if state == raft.Leader {
-			info.Leaders++
-
 			if info.Leader != nil {
 				cluster.t.Error("multiple leaders")
 			}
@@ -120,12 +116,12 @@ func (cluster *cluster) GetState() ClusterState {
 			info.Term = term
 		}
 
-		if state != raft.Follower {
-			info.Followers++
+		if state == raft.Follower {
+			info.Followers = append(info.Followers, node.node.Addr())
 		}
 
-		if state != raft.Candidate {
-			info.Candidates++
+		if state == raft.Candidate {
+			info.Candidates = append(info.Candidates, node.node.Addr())
 		}
 	}
 	return info

@@ -44,12 +44,31 @@ func TestIdempotency(t *testing.T) {
 	assert.Nil(t, cns.Down())
 }
 
-func TestSingleLeader(t *testing.T) {
+func TestElection(t *testing.T) {
 	cluster := test.WithCluster(t, addrs(5))
 
 	// Assert that a single leader is elected
 	state1 := cluster.WaitElection().GetState()
 	assert.NotNil(t, state1.Leader)
+}
+
+func TestFollowerDisconnect(t *testing.T) {
+	cluster := test.WithCluster(t, addrs(3))
+
+	// Assert that a single leader is elected
+	state1 := cluster.WaitElection().GetState()
+	assert.NotNil(t, state1.Leader)
+	assert.NotEmpty(t, state1.Followers)
+
+	// Assert that no election occured after the follower disconnected
+	state2 := cluster.Disconnect(state1.Followers[0]).WaitElection().GetState()
+	assert.Equal(t, state2.Leader, state1.Leader)
+	assert.Equal(t, state2.Term, state1.Term)
+
+	// Assert that after the follower reconnected a new leader is elected
+	state3 := cluster.Reconnect(state1.Followers[0]).WaitElection().GetState()
+	assert.NotNil(t, state3.Leader)
+	assert.Greater(t, state3.Term, state1.Term)
 }
 
 func TestLeaderDisconnect(t *testing.T) {
