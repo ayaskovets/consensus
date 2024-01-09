@@ -24,13 +24,13 @@ type Raft struct {
 	settings RaftSettings
 
 	// Raft state
-	mu             sync.RWMutex
-	currentTerm    int
-	votedFor       string
-	state          string
+	mu          sync.Mutex
+	currentTerm int
+	votedFor    string
+	state       string
+	// Event triggers
 	heartbeatTimer *time.Ticker
 	electionTimer  *time.Ticker
-
 	// Shutdown channel
 	shutdown chan any
 }
@@ -41,14 +41,13 @@ func NewRaft(node RaftNode, settings RaftSettings) *Raft {
 		node:     node,
 		settings: settings,
 
-		mu:             sync.RWMutex{},
+		mu:             sync.Mutex{},
 		currentTerm:    0,
 		votedFor:       Nobody,
 		state:          Follower,
 		heartbeatTimer: time.NewTicker(settings.HeartbeatTimeout()),
 		electionTimer:  time.NewTicker(settings.ElectionTimeout()),
-
-		shutdown: make(chan any),
+		shutdown:       make(chan any),
 	}
 	close(raft.shutdown)
 	return &raft
@@ -56,12 +55,18 @@ func NewRaft(node RaftNode, settings RaftSettings) *Raft {
 
 // Get actual state and current term of the instance
 func (raft *Raft) Info() (string, int) {
+	raft.mu.Lock()
+	defer raft.mu.Unlock()
+
 	return raft.state, raft.currentTerm
 }
 
 // Start up local Raft instance.
 // Non-blocking
 func (raft *Raft) Up() error {
+	raft.mu.Lock()
+	defer raft.mu.Unlock()
+
 	select {
 	case <-raft.shutdown:
 		raft.shutdown = make(chan any)
@@ -79,14 +84,18 @@ func (raft *Raft) Up() error {
 				raft.electionTimer.Stop()
 				return
 			case <-raft.electionTimer.C:
+				raft.mu.Lock()
 				if raft.state != Leader {
 					raft.becomeCandidate()
 					raft.startElection()
 				}
+				raft.mu.Unlock()
 			case <-raft.heartbeatTimer.C:
+				raft.mu.Lock()
 				if raft.state == Leader {
 					raft.sendHearbeats()
 				}
+				raft.mu.Unlock()
 			default:
 			}
 		}
@@ -115,6 +124,9 @@ func (raft *Raft) Down() error {
 
 // RequestVote RPC handler
 func (raft *Raft) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) error {
+	raft.mu.Lock()
+	defer raft.mu.Unlock()
+
 	if args.Term > raft.currentTerm {
 		raft.becomeFollower(args.Term)
 	}
@@ -139,6 +151,9 @@ func (raft *Raft) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) err
 
 // AppendEntries RPC handler
 func (raft *Raft) AppendEntries(args AppendEntriesArgs, reply *AppendEntriesReply) error {
+	raft.mu.Lock()
+	defer raft.mu.Unlock()
+
 	if args.Term > raft.currentTerm {
 		raft.becomeFollower(args.Term)
 	}
@@ -173,9 +188,11 @@ func (raft *Raft) sendHearbeats() {
 			var reply AppendEntriesReply
 
 			if err := peer.AppendEntries(args, &reply); err != nil {
-				// log.Printf("%s: AppendEntries to %s failed: %s", raft.node.Id(), peer.Id(), err)
 				return
 			}
+
+			raft.mu.Lock()
+			defer raft.mu.Unlock()
 
 			if reply.Term > currentTerm {
 				raft.becomeFollower(reply.Term)
@@ -207,9 +224,11 @@ func (raft *Raft) startElection() {
 			var reply RequestVoteReply
 
 			if err := peer.RequestVote(args, &reply); err != nil {
-				// log.Printf("%s: RequestVote to %s failed: %s", raft.node.Id(), peer.Id(), err)
 				return
 			}
+
+			raft.mu.Lock()
+			defer raft.mu.Unlock()
 
 			if reply.Term > currentTerm {
 				raft.becomeFollower(reply.Term)
@@ -221,8 +240,6 @@ func (raft *Raft) startElection() {
 			}
 
 			if reply.VoteGranted == true {
-				// log.Printf("%s: received a vote from %s", raft.node.Id(), peer.Id())
-
 				if int(votes.Add(1)) >= majority {
 					raft.becomeLeader()
 					raft.sendHearbeats()
