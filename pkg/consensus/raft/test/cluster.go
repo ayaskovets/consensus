@@ -72,16 +72,13 @@ func (cluster *cluster) up() error {
 //
 // Any error is propataged to the corresponding testing.T object
 func (cluster *cluster) down() error {
-	for _, node := range cluster.disconnected {
-		if err := node.node.Down(); err != nil {
-			return err
-		}
+	for _, node := range cluster.connected {
 		if err := node.raft.Down(); err != nil {
 			return err
 		}
 	}
 
-	for _, node := range cluster.connected {
+	for _, node := range cluster.disconnected {
 		if err := node.raft.Down(); err != nil {
 			return err
 		}
@@ -100,6 +97,12 @@ func (cluster *cluster) down() error {
 	}
 
 	for _, node := range cluster.connected {
+		if err := node.node.Down(); err != nil {
+			return err
+		}
+	}
+
+	for _, node := range cluster.disconnected {
 		if err := node.node.Down(); err != nil {
 			return err
 		}

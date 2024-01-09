@@ -54,6 +54,11 @@ func NewRaft(node RaftNode, settings RaftSettings) *Raft {
 	return &raft
 }
 
+// Get actual state and current term of the instance
+func (raft *Raft) Info() (string, int) {
+	return raft.state, raft.currentTerm
+}
+
 // Start up local Raft instance.
 // Non-blocking
 func (raft *Raft) Up() error {
@@ -76,6 +81,7 @@ func (raft *Raft) Up() error {
 			case <-raft.electionTimer.C:
 				if raft.state != Leader {
 					raft.becomeCandidate()
+					raft.startElection()
 				}
 			case <-raft.heartbeatTimer.C:
 				if raft.state == Leader {
@@ -153,11 +159,6 @@ func (raft *Raft) AppendEntries(args AppendEntriesArgs, reply *AppendEntriesRepl
 	return nil
 }
 
-// Get actual state and current term of the instance
-func (raft *Raft) Info() (string, int) {
-	return raft.state, raft.currentTerm
-}
-
 // Send empty AppendEntries to all peers
 //
 // Switch state to Follower in case there is a peer with a greater term
@@ -172,7 +173,7 @@ func (raft *Raft) sendHearbeats() {
 			var reply AppendEntriesReply
 
 			if err := peer.AppendEntries(args, &reply); err != nil {
-				log.Printf("%s: AppendEntries to %s failed: %s", raft.node.Id(), peer.Id(), err)
+				// log.Printf("%s: AppendEntries to %s failed: %s", raft.node.Id(), peer.Id(), err)
 				return
 			}
 
@@ -206,7 +207,7 @@ func (raft *Raft) startElection() {
 			var reply RequestVoteReply
 
 			if err := peer.RequestVote(args, &reply); err != nil {
-				log.Printf("%s: RequestVote to %s failed: %s", raft.node.Id(), peer.Id(), err)
+				// log.Printf("%s: RequestVote to %s failed: %s", raft.node.Id(), peer.Id(), err)
 				return
 			}
 
@@ -220,10 +221,11 @@ func (raft *Raft) startElection() {
 			}
 
 			if reply.VoteGranted == true {
-				log.Printf("%s: received a vote from %s", raft.node.Id(), peer.Id())
+				// log.Printf("%s: received a vote from %s", raft.node.Id(), peer.Id())
 
 				if int(votes.Add(1)) >= majority {
 					raft.becomeLeader()
+					raft.sendHearbeats()
 				}
 			}
 		}(peer)
@@ -238,7 +240,6 @@ func (raft *Raft) becomeLeader() {
 
 	raft.state = Leader
 	raft.votedFor = Nobody
-	raft.sendHearbeats()
 	raft.heartbeatTimer.Reset(raft.settings.HeartbeatTimeout())
 }
 
@@ -265,6 +266,5 @@ func (raft *Raft) becomeCandidate() {
 	raft.state = Candidate
 	raft.currentTerm += 1
 	raft.votedFor = raft.node.Id()
-	raft.startElection()
 	raft.electionTimer.Reset(raft.settings.ElectionTimeout())
 }
