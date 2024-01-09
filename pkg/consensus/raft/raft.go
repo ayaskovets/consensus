@@ -23,31 +23,41 @@ type Raft struct {
 	node     RaftNode
 	settings RaftSettings
 
-	// Raft state
-	mu          sync.Mutex
-	currentTerm int
-	votedFor    string
-	state       string
+	// Shutdown channel
+	shutdown chan any
+
 	// Event triggers
 	heartbeatTimer *time.Ticker
 	electionTimer  *time.Ticker
-	// Shutdown channel
-	shutdown chan any
+
+	// State mutex
+	mu sync.Mutex
+
+	// Persistent state on all servers
+	currentTerm int
+	votedFor    string
+
+	// Volatile state on all servers
+	state       string
+	commitIndex int
+	lastApplied int
 }
 
 // Construct new Raft object
 func NewRaft(node RaftNode, settings RaftSettings) *Raft {
 	raft := Raft{
-		node:     node,
-		settings: settings,
-
-		mu:             sync.Mutex{},
-		currentTerm:    0,
-		votedFor:       Nobody,
-		state:          Follower,
+		node:           node,
+		settings:       settings,
+		shutdown:       make(chan any),
 		heartbeatTimer: time.NewTicker(settings.HeartbeatTimeout()),
 		electionTimer:  time.NewTicker(settings.ElectionTimeout()),
-		shutdown:       make(chan any),
+		mu:             sync.Mutex{},
+
+		currentTerm: 0,
+		votedFor:    Nobody,
+		state:       Follower,
+		commitIndex: -1,
+		lastApplied: -1,
 	}
 	close(raft.shutdown)
 	return &raft
