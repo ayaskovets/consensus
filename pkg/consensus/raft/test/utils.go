@@ -88,8 +88,7 @@ func (cluster *cluster) Reconnect(addr net.Addr) *cluster {
 
 // Wait for the next election (approximately)
 func (cluster *cluster) WaitElection() *cluster {
-	settings := RaftSettings{}
-	time.Sleep(settings.ElectionTimeout() * 4)
+	time.Sleep(time.Millisecond * 450)
 
 	return cluster
 }
