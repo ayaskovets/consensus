@@ -2,7 +2,7 @@ package raft
 
 import "time"
 
-// Remote Raft instance interface
+// Remote Raft instance
 //
 // Implementation is expected to be thread-safe
 type RaftPeer interface {
