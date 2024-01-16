@@ -94,7 +94,10 @@ func (node *Node) Disconnect(addr net.Addr) error {
 }
 
 // Start up node.
-// Non-blocking
+// Non-blocking.
+//
+// Idempotent. Each call to this function must be followed by a
+// corresponding shutdown
 func (node *Node) Up() error {
 	return node.server.Up()
 }
@@ -112,8 +115,9 @@ func (node *Node) Call(addr net.Addr, serviceMethod string, args any, reply any)
 }
 
 // Shutdown node
-//
 // All outgoing connections to peers of the node should be closed manually
+//
+// Idempotent. Successful call indicates that node can be started again
 func (node *Node) Down() error {
 	return node.server.Down()
 }

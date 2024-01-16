@@ -26,7 +26,7 @@ func NewClient(addr net.Addr) *Client {
 // Blocking
 //
 // Idempotent. Returns nil if already connected. Each call to this function
-// must be followed by a corresponding disconnect.
+// must be followed by a corresponding disconnect
 func (client *Client) Connect() error {
 	if client.rpc.Load() != nil {
 		return nil
