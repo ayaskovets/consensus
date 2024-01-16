@@ -11,7 +11,7 @@ type RaftPeer interface {
 	AppendEntries(args AppendEntriesArgs, reply *AppendEntriesReply) error
 }
 
-// Customizable network topology info provider for local Raft instance
+// Network topology info provider for local Raft instance
 //
 // Implementation is expected to be thread-safe
 type RaftNode interface {
@@ -19,7 +19,7 @@ type RaftNode interface {
 	Peers() []RaftPeer
 }
 
-// Customizable static-ish settings and configuration for local Raft instance
+// Static-ish settings and configuration for local Raft instance
 //
 // Implementation is expected to be thread-safe
 type RaftSettings interface {
