@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -96,7 +97,31 @@ func (raft *Raft) Up() error {
 
 	log.Printf("%s: start up raft", raft.node.Id())
 
-	go raft.runEventLoop()
+	go func() {
+		for {
+			select {
+			case <-raft.shutdown:
+				raft.heartbeatTimer.Stop()
+				raft.electionTimer.Stop()
+				return
+			case <-raft.electionTimer.C:
+				raft.mu.Lock()
+				if raft.state != Leader {
+					raft.becomeCandidate()
+					raft.startElection()
+				}
+				raft.mu.Unlock()
+			case <-raft.heartbeatTimer.C:
+				raft.mu.Lock()
+				if raft.state == Leader {
+					raft.sendHearbeats()
+				}
+				raft.mu.Unlock()
+			default:
+			}
+		}
+	}()
+
 	return nil
 }
 
@@ -121,37 +146,60 @@ func (raft *Raft) Down() error {
 	return nil
 }
 
+// Apply command to the local instance
+//
+// Error is returned either if the instance is not Leader at the time or
+// in case of any other error
+func (raft *Raft) Apply(command any) error {
+	raft.mu.Lock()
+	defer raft.mu.Unlock()
+
+	if raft.state != Leader {
+		return fmt.Errorf("can not apply on %s", raft.state)
+	}
+
+	raft.log = append(raft.log, Entry{Command: command, Term: raft.currentTerm})
+	return nil
+}
+
 // RequestVote RPC handler
 func (raft *Raft) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) error {
 	raft.mu.Lock()
 	defer raft.mu.Unlock()
 
+	// Convert to Follower on receiving an RPC request greater term (§5.1)
 	if args.Term > raft.currentTerm {
 		raft.becomeFollower(args.Term)
 	}
 
-	if args.Term < raft.currentTerm {
-		reply.Term = raft.currentTerm
-		reply.VoteGranted = false
-		return nil
-	}
-
-	if raft.votedFor != Nobody && raft.votedFor != args.CandidateId {
-		reply.Term = raft.currentTerm
-		reply.VoteGranted = false
-		return nil
-	}
-
-	lastLogIndex, lastLogTerm := raft.logInfo()
-	if args.LastLogTerm < lastLogTerm || (args.LastLogTerm == lastLogTerm && args.LastLogIndex < lastLogIndex) {
-		reply.Term = raft.currentTerm
-		reply.VoteGranted = false
-		return nil
-	}
-
 	reply.Term = raft.currentTerm
+	reply.VoteGranted = false
+
+	// Reply false if term < currentTerm (§5.1)
+	if args.Term < raft.currentTerm {
+		return nil
+	}
+
+	// Reply false if votedFor is not null and not equal to candidateId (§5.2)
+	if raft.votedFor != Nobody && raft.votedFor != args.CandidateId {
+		return nil
+	}
+
+	// Reply false if candidate's last log term is not up to date (§5.4)
+	lastLogIndex, lastLogTerm := raft.lastLogIndexTerm()
+	if args.LastLogTerm < lastLogTerm {
+		return nil
+	}
+
+	// Reply false if candidate's log has missing entries (§5.4)
+	if args.LastLogTerm == lastLogTerm && args.LastLogIndex < lastLogIndex {
+		return nil
+	}
+
+	// Grant vote otherwise (§5.4)
 	reply.VoteGranted = true
 	raft.votedFor = args.CandidateId
+
 	return nil
 }
 
@@ -160,158 +208,150 @@ func (raft *Raft) AppendEntries(args AppendEntriesArgs, reply *AppendEntriesRepl
 	raft.mu.Lock()
 	defer raft.mu.Unlock()
 
-	if args.Term < raft.currentTerm {
-		reply.Term = raft.currentTerm
-		reply.Success = false
-		return nil
-	}
-
-	if args.Term > raft.currentTerm || raft.state == Candidate {
+	// Convert to Follower on receiving an RPC request greater term (§5.1)
+	if args.Term > raft.currentTerm {
 		raft.becomeFollower(args.Term)
 	}
 
-	if args.PrevLogIndex != Initial && (args.PrevLogIndex >= len(raft.log) || args.PrevLogTerm != raft.log[args.PrevLogIndex].Term) {
-		reply.Term = raft.currentTerm
-		reply.Success = false
+	reply.Term = raft.currentTerm
+	reply.Success = false
+
+	// Reply false if term < currentTerm (§5.1)
+	if args.Term < raft.currentTerm {
 		return nil
 	}
 
-	logInsertIndex := args.PrevLogIndex + 1
-	newEntriesIndex := 0
-	for {
-		if logInsertIndex >= len(raft.log) || newEntriesIndex >= len(args.Entries) {
-			break
+	// Reply false if log does not contain an entry at PrevLogIndex whose term
+	// does matches PrevLogTerm (§5.3)
+	if args.PrevLogIndex != Initial {
+		if args.PrevLogIndex >= len(raft.log) {
+			return nil
 		}
-		if raft.log[logInsertIndex].Term != args.Entries[newEntriesIndex].Term {
-			break
+
+		if prevLogTerm := raft.log[args.PrevLogIndex].Term; args.PrevLogTerm != prevLogTerm {
+			return nil
 		}
-		logInsertIndex++
-		newEntriesIndex++
 	}
 
-	if newEntriesIndex < len(args.Entries) {
-		raft.log = append(raft.log[:logInsertIndex], args.Entries[newEntriesIndex:]...)
+	// If an existing entry conflicts with a new one, delete the existing entry
+	// and all that follow it (§5.3)
+	{
+		logIndex := args.PrevLogIndex + 1
+		entriesIndex := 0
+		for logIndex < len(raft.log) &&
+			entriesIndex < len(args.Entries) &&
+			raft.log[logIndex].Term == args.Entries[entriesIndex].Term {
+			logIndex++
+			entriesIndex++
+		}
+
+		raft.log = append(raft.log[:logIndex], args.Entries[entriesIndex:]...)
 	}
 
+	// Set commitIndex to the Leader commit index
 	if args.LeaderCommit > raft.commitIndex {
 		raft.commitIndex = min(args.LeaderCommit, len(raft.log)-1)
 	}
 
-	reply.Term = raft.currentTerm
+	// Reply true otherwise
 	reply.Success = true
 	raft.electionTimer.Reset(raft.settings.ElectionTimeout())
+
 	return nil
 }
 
-// Apply the command to the instance
-func (raft *Raft) Apply(command any) bool {
-	raft.mu.Lock()
-	defer raft.mu.Unlock()
+// Helper function to get the (LastLogIndex, LastLogTerm) pair
+//
+// Note that raft.mu has to be locked to get an up-to-date result
+func (raft *Raft) lastLogIndexTerm() (int, int) {
+	lastLogIndex := Initial
+	lastLogTerm := Initial
 
-	if raft.state != Leader {
-		return false
+	if len(raft.log) > 0 {
+		lastLogIndex = len(raft.log) - 1
+		lastLogTerm = raft.log[lastLogIndex].Term
 	}
 
-	raft.log = append(raft.log, Entry{Command: command, Term: raft.currentTerm})
-	return true
-}
-
-func (raft *Raft) runEventLoop() {
-	for {
-		select {
-		case <-raft.shutdown:
-			raft.heartbeatTimer.Stop()
-			raft.electionTimer.Stop()
-			return
-		case <-raft.electionTimer.C:
-			raft.mu.Lock()
-			if raft.state != Leader {
-				raft.becomeCandidate()
-				raft.startElection()
-			}
-			raft.mu.Unlock()
-		case <-raft.heartbeatTimer.C:
-			raft.mu.Lock()
-			if raft.state == Leader {
-				raft.sendHearbeats()
-			}
-			raft.mu.Unlock()
-		default:
-		}
-	}
+	return lastLogIndex, lastLogTerm
 }
 
 // Send AppendEntries to all peers
 //
-// Switch state to Follower in case there is a peer with a greater term
+// Convert to Follower in case there is a peer with a greater term.
+// Expects raft.mu to be locked
 func (raft *Raft) sendHearbeats() {
+	// It is OK to save term globally for all heartbeats because it's change
+	// means that a new election occured
 	currentTerm := raft.currentTerm
+
+	sendAppendEntries := func(peer RaftPeer) {
+		raft.mu.Lock()
+		nextIndex := raft.nextIndex[peer.Id()]
+		prevLogIndex := nextIndex - 1
+		prevLogTerm := Initial
+		if prevLogIndex != Initial {
+			prevLogTerm = raft.log[prevLogIndex].Term
+		}
+		entries := raft.log[nextIndex:]
+		leaderCommit := raft.commitIndex
+		raft.mu.Unlock()
+
+		args := AppendEntriesArgs{
+			Term:         currentTerm,
+			LeaderId:     raft.node.Id(),
+			PrevLogIndex: prevLogIndex,
+			PrevLogTerm:  prevLogTerm,
+			Entries:      entries,
+			LeaderCommit: leaderCommit,
+		}
+		var reply AppendEntriesReply
+
+		if err := peer.AppendEntries(args, &reply); err != nil {
+			return
+		}
+
+		raft.mu.Lock()
+		defer raft.mu.Unlock()
+
+		// Convert to Follower on receiving an RPC response greater term (§5.1)
+		if reply.Term > raft.currentTerm {
+			raft.becomeFollower(args.Term)
+		}
+
+		// Retry the next heartbeat to this peer with a smaller index
+		if !reply.Success {
+			raft.nextIndex[peer.Id()] = nextIndex - 1
+			return
+		}
+
+		raft.nextIndex[peer.Id()] = nextIndex + len(entries)
+		raft.matchIndex[peer.Id()] = raft.nextIndex[peer.Id()] - 1
+
+		// If there exists an N such that N > commitIndex, a majority
+		// of matchIndex[i] >= N, and log[N].term == currentTerm:
+		// set commitIndex = N (§5.3, §5.4).
+		commitIndex := raft.commitIndex
+		majority := raft.settings.Majority(len(raft.node.Peers()))
+		for N := commitIndex + 1; N < len(raft.log); N++ {
+			if raft.log[N].Term != currentTerm {
+				continue
+			}
+
+			matched := 1
+			for _, peer := range raft.node.Peers() {
+				if raft.matchIndex[peer.Id()] >= N {
+					matched++
+				}
+			}
+
+			if matched >= majority {
+				raft.commitIndex = N
+			}
+		}
+	}
+
 	for _, peer := range raft.node.Peers() {
-		go func(peer RaftPeer) {
-			raft.mu.Lock()
-			nextIndex := raft.nextIndex[peer.Id()]
-			prevLogIndex := nextIndex - 1
-			prevLogTerm := Initial
-			if prevLogIndex >= 0 {
-				prevLogTerm = raft.log[prevLogIndex].Term
-			}
-			entries := raft.log[nextIndex:]
-			leaderCommit := raft.commitIndex
-			raft.mu.Unlock()
-
-			args := AppendEntriesArgs{
-				Term:         currentTerm,
-				LeaderId:     raft.node.Id(),
-				PrevLogIndex: prevLogIndex,
-				PrevLogTerm:  prevLogTerm,
-				Entries:      entries,
-				LeaderCommit: leaderCommit,
-			}
-			var reply AppendEntriesReply
-
-			if err := peer.AppendEntries(args, &reply); err != nil {
-				return
-			}
-
-			raft.mu.Lock()
-			defer raft.mu.Unlock()
-
-			if reply.Term > currentTerm {
-				raft.becomeFollower(reply.Term)
-			}
-
-			if raft.state != Leader {
-				return
-			}
-
-			if !reply.Success {
-				raft.nextIndex[peer.Id()] = nextIndex - 1
-				return
-			}
-
-			raft.nextIndex[peer.Id()] = nextIndex + len(entries)
-			raft.matchIndex[peer.Id()] = raft.nextIndex[peer.Id()] - 1
-
-			commitIndex := raft.commitIndex
-			for N := commitIndex + 1; N < len(raft.log); N++ {
-				if raft.log[N].Term != currentTerm {
-					continue
-				}
-
-				matchCount := 1
-				for _, peer := range raft.node.Peers() {
-					if raft.matchIndex[peer.Id()] < N {
-						continue
-					}
-
-					matchCount++
-				}
-
-				if matchCount >= raft.settings.Majority(len(raft.node.Peers())) {
-					raft.commitIndex = N
-				}
-			}
-		}(peer)
+		go sendAppendEntries(peer)
 	}
 }
 
@@ -319,62 +359,61 @@ func (raft *Raft) sendHearbeats() {
 //
 // Upon receiving the configured majority of votes, become Leader. If election
 // fails with no majority, restart it after the next timeout.
-// Switch state to Follower in case there is a peer with a greater term
+// Convert to Follower in case there is a peer with a greater term.
+// Expects raft.mu to be locked
 func (raft *Raft) startElection() {
 	votes := 1
 	majority := raft.settings.Majority(len(raft.node.Peers()))
 	currentTerm := raft.currentTerm
 
+	sendRequestVote := func(peer RaftPeer) {
+		raft.mu.Lock()
+		lastLogIndex, lastLogTerm := raft.lastLogIndexTerm()
+		raft.mu.Unlock()
+
+		args := RequestVoteArgs{
+			Term:         currentTerm,
+			CandidateId:  raft.node.Id(),
+			LastLogIndex: lastLogIndex,
+			LastLogTerm:  lastLogTerm,
+		}
+		var reply RequestVoteReply
+
+		if err := peer.RequestVote(args, &reply); err != nil {
+			return
+		}
+
+		raft.mu.Lock()
+		defer raft.mu.Unlock()
+
+		// Convert to Follower on receiving an RPC response greater term (§5.1)
+		if reply.Term > raft.currentTerm {
+			raft.becomeFollower(args.Term)
+		}
+
+		if !reply.VoteGranted {
+			return
+		}
+
+		// Convert to leader and send initial hearbeats
+		if votes++; votes >= majority {
+			raft.becomeLeader()
+			raft.sendHearbeats()
+		}
+	}
+
 	for _, peer := range raft.node.Peers() {
-		go func(peer RaftPeer) {
-			raft.mu.Lock()
-			lastLogIndex, lastLogTerm := raft.logInfo()
-			raft.mu.Unlock()
-
-			args := RequestVoteArgs{
-				Term:         currentTerm,
-				CandidateId:  raft.node.Id(),
-				LastLogIndex: lastLogIndex,
-				LastLogTerm:  lastLogTerm,
-			}
-			var reply RequestVoteReply
-
-			if err := peer.RequestVote(args, &reply); err != nil {
-				return
-			}
-
-			raft.mu.Lock()
-			defer raft.mu.Unlock()
-
-			if reply.Term > currentTerm {
-				raft.becomeFollower(reply.Term)
-				return
-			}
-
-			if raft.state != Candidate {
-				return
-			}
-
-			if !reply.VoteGranted {
-				return
-			}
-
-			if votes++; votes >= majority {
-				raft.becomeLeader()
-				raft.sendHearbeats()
-			}
-		}(peer)
+		go sendRequestVote(peer)
 	}
 }
 
-// Switch state to Leader
+// Convert to Leader
 //
-// Enable heartbeats while in Leader state
+// Enable heartbeats while in Leader state. Expects raft.mu to be locked
 func (raft *Raft) becomeLeader() {
 	log.Printf("%s: Leader in term %d", raft.node.Id(), raft.currentTerm)
 
 	raft.state = Leader
-	raft.votedFor = Nobody
 	for _, peer := range raft.node.Peers() {
 		raft.nextIndex[peer.Id()] = len(raft.log)
 		raft.matchIndex[peer.Id()] = Initial
@@ -382,10 +421,10 @@ func (raft *Raft) becomeLeader() {
 	raft.heartbeatTimer.Reset(raft.settings.HeartbeatTimeout())
 }
 
-// Switch state to Follower
+// Convert to Follower
 //
 // Usually Follower state is applied when there is an instance with a greater
-// term. The term is provided as an argument
+// term. The term is provided as an argument. Expects raft.mu to be locked
 func (raft *Raft) becomeFollower(term int) {
 	log.Printf("%s: Follower in term %d", raft.node.Id(), term)
 
@@ -395,15 +434,16 @@ func (raft *Raft) becomeFollower(term int) {
 	raft.electionTimer.Reset(raft.settings.ElectionTimeout())
 }
 
-// Switch state to Candidate
+// Convert to Candidate
 //
 // Triggered upon a heartbeat timeout from the current Leader.
-// Increase current term and start a new election voting for self
+// Increase current term and start a new election voting for self. Expects
+// raft.mu to be locked
 func (raft *Raft) becomeCandidate() {
 	log.Printf("%s: Candidate in term %d", raft.node.Id(), raft.currentTerm+1)
 
 	raft.state = Candidate
-	raft.currentTerm += 1
+	raft.currentTerm++
 	raft.votedFor = raft.node.Id()
 	raft.electionTimer.Reset(raft.settings.ElectionTimeout())
 }
