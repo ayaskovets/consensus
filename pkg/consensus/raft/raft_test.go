@@ -167,3 +167,165 @@ func TestNoQuorumReconnect(t *testing.T) {
 	assert.NotNil(t, state5.Leader)
 	assert.GreaterOrEqual(t, state5.Term, state4.Term)
 }
+
+func TestApplyOnFollower(t *testing.T) {
+	cluster := test.WithCluster(t, addrs(3))
+
+	// Assert that the first election is successful
+	state1 := cluster.
+		WaitElection().
+		GetState()
+	assert.NotNil(t, state1.Leader)
+
+	// Assert that the entry is not committed
+	assert.Equal(t, cluster.
+		Apply(state1.Followers[0], "one").
+		WaitHearbeat().
+		CountCommitted([]any{"one"}), 0)
+}
+
+func TestApplyOnLeader(t *testing.T) {
+	cluster := test.WithCluster(t, addrs(3))
+
+	// Assert that the first election is successful
+	state1 := cluster.
+		WaitElection().
+		GetState()
+	assert.NotNil(t, state1.Leader)
+
+	// Assert that apply requests on leader is successful
+	assert.Equal(t, cluster.
+		Apply(state1.Leader, "one").
+		Apply(state1.Leader, "two").
+		WaitHearbeat().
+		CountCommitted([]any{"one", "two"}), 3)
+}
+
+func TestRepairDisconnectedLog(t *testing.T) {
+	cluster := test.WithCluster(t, addrs(3))
+
+	// Assert that the first election is successful
+	state1 := cluster.
+		WaitElection().
+		GetState()
+	assert.NotNil(t, state1.Leader)
+
+	// Assert that apply requests on leader are successful
+	assert.Equal(t, cluster.
+		Apply(state1.Leader, "one").
+		Apply(state1.Leader, "two").
+		WaitHearbeat().
+		CountCommitted([]any{"one", "two"}), 3)
+
+	// Assert that apply request for 2/3 alive node is successful
+	assert.Equal(t, cluster.
+		Disconnect(state1.Followers[0]).
+		WaitHearbeat().
+		Apply(state1.Leader, "three").
+		WaitHearbeat().
+		CountCommitted([]any{"one", "two", "three"}), 2)
+
+	// Assert that the reconnect is successful with optional re-elections
+	state2 := cluster.
+		Reconnect(state1.Followers[0]).
+		WaitElection().
+		GetState()
+	assert.NotNil(t, state2.Leader)
+	assert.GreaterOrEqual(t, state2.Term, state1.Term)
+
+	// Assert that the disconnected node receives missed updates
+	assert.Equal(t, cluster.
+		WaitHearbeat().
+		CountCommitted([]any{"one", "two", "three"}), 3)
+}
+
+func TestApplyNoQuorum(t *testing.T) {
+	cluster := test.WithCluster(t, addrs(3))
+
+	// Assert that the first election is successful
+	state1 := cluster.
+		WaitElection().
+		GetState()
+	assert.NotNil(t, state1.Leader)
+
+	// Assert that apply requests on leader are successful
+	assert.Equal(t, cluster.
+		Apply(state1.Leader, "one").
+		Apply(state1.Leader, "two").
+		WaitHearbeat().
+		CountCommitted([]any{"one", "two"}), 3)
+
+	// Assert that no entries are committed for 1/3 alive nodes
+	assert.Equal(t, cluster.
+		Disconnect(state1.Followers[0]).
+		Disconnect(state1.Followers[1]).
+		WaitElection().
+		Apply(state1.Leader, "three").
+		WaitHearbeat().
+		CountCommitted([]any{"one", "two", "three"}), 0)
+
+	// Assert that a new optional elections happed after reconnect
+	state2 := cluster.
+		Reconnect(state1.Followers[0]).
+		Reconnect(state1.Followers[1]).
+		WaitElection().
+		GetState()
+	assert.NotNil(t, state2.Leader)
+	assert.GreaterOrEqual(t, state2.Term, state1.Term)
+
+	// Assert that after nodes reconnect new applies are successful
+	assert.Equal(t, cluster.
+		Apply(state2.Leader, "four").
+		WaitHearbeat().
+		CountCommitted([]any{"one", "two", "four"}), 3)
+
+}
+
+func TestApplyLeaderDisconnect(t *testing.T) {
+	cluster := test.WithCluster(t, addrs(3))
+
+	// Assert that the first election is successful
+	state1 := cluster.WaitElection().GetState()
+	assert.NotNil(t, state1.Leader)
+
+	// Assert that apply requests on leader are successful
+	assert.Equal(t, cluster.
+		Apply(state1.Leader, "one").
+		Apply(state1.Leader, "two").
+		WaitHearbeat().
+		CountCommitted([]any{"one", "two"}), 3)
+
+	// Assert that re-election happens
+	state2 := cluster.
+		Disconnect(state1.Leader).
+		WaitElection().
+		GetState()
+	assert.NotNil(t, state2.Leader)
+	assert.Greater(t, state2.Term, state1.Term)
+
+	// Assert that apply request on the old leader is not committed
+	assert.Equal(t, cluster.
+		Apply(state1.Leader, "three").
+		WaitHearbeat().
+		CountCommitted([]any{"one", "two", "three"}), 0)
+
+	// Assert that apply request on the new leader is committed
+	assert.Equal(t, cluster.
+		Apply(state2.Leader, "four").
+		WaitHearbeat().
+		CountCommitted([]any{"one", "two", "four"}), 2)
+
+	// Assert that another optional election happens
+	state3 := cluster.
+		Reconnect(state1.Leader).
+		WaitElection().
+		GetState()
+	assert.NotNil(t, state3.Leader)
+	assert.GreaterOrEqual(t, state3.Term, state2.Term)
+
+	// Assert that apply request on the last leader is committed
+	assert.Equal(t, cluster.
+		Apply(state2.Leader, "five").
+		WaitHearbeat().
+		CountCommitted([]any{"one", "two", "four", "five"}), 3)
+}
