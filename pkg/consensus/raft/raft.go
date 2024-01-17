@@ -260,6 +260,26 @@ func (raft *Raft) AppendEntries(args AppendEntriesArgs, reply *AppendEntriesRepl
 	return nil
 }
 
+// Get actual state and current term of the instance
+type RaftInfo struct {
+	State       string
+	Term        int
+	Log         []Entry
+	CommitIndex int
+}
+
+func (raft *Raft) GetInfo() RaftInfo {
+	raft.mu.Lock()
+	defer raft.mu.Unlock()
+
+	return RaftInfo{
+		State:       raft.state,
+		Term:        raft.currentTerm,
+		Log:         raft.log,
+		CommitIndex: raft.commitIndex,
+	}
+}
+
 // Helper function to get the (LastLogIndex, LastLogTerm) pair
 //
 // Note that raft.mu has to be locked to get an up-to-date result
