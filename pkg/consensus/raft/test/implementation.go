@@ -70,30 +70,30 @@ func (node *MockRaftNode) Peers() []raft.RaftPeer {
 //
 // Default timeouts are the ones suggested in the original paper
 type RaftSettings struct {
-	MinElectionTimeout  int
-	MaxElectionTimeout  int
-	MinHeartbeatTimeout int
-	MaxHeartbeatTimeout int
+	MinElectionTimeout  time.Duration
+	MaxElectionTimeout  time.Duration
+	MinHeartbeatTimeout time.Duration
+	MaxHeartbeatTimeout time.Duration
 }
 
 func NewRaftSettings() RaftSettings {
 	return RaftSettings{
-		MinElectionTimeout:  150,
-		MaxElectionTimeout:  300,
-		MinHeartbeatTimeout: 50,
-		MaxHeartbeatTimeout: 100,
+		MinElectionTimeout:  150 * time.Millisecond,
+		MaxElectionTimeout:  300 * time.Millisecond,
+		MinHeartbeatTimeout: 50 * time.Millisecond,
+		MaxHeartbeatTimeout: 100 * time.Millisecond,
 	}
 }
 
 func (settings RaftSettings) ElectionTimeout() time.Duration {
-	min := settings.MinElectionTimeout
-	max := settings.MaxElectionTimeout
+	min := int(settings.MinElectionTimeout.Milliseconds())
+	max := int(settings.MaxElectionTimeout.Milliseconds())
 	return time.Millisecond * time.Duration(rand.Intn(max-min)+min)
 }
 
 func (settings RaftSettings) HeartbeatTimeout() time.Duration {
-	min := settings.MinHeartbeatTimeout
-	max := settings.MaxHeartbeatTimeout
+	min := int(settings.MinHeartbeatTimeout.Milliseconds())
+	max := int(settings.MaxHeartbeatTimeout.Milliseconds())
 	return time.Millisecond * time.Duration(rand.Intn(max-min)+min)
 }
 
