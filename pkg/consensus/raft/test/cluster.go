@@ -13,6 +13,7 @@ type cluster struct {
 	t            *testing.T
 	connected    map[net.Addr]RaftNode
 	disconnected map[net.Addr]RaftNode
+	settings     RaftSettings
 }
 
 // Construct new cluster object
@@ -21,14 +22,13 @@ func newCluster(addrs []net.Addr) *cluster {
 		t:            nil,
 		connected:    make(map[net.Addr]RaftNode),
 		disconnected: make(map[net.Addr]RaftNode),
+		settings:     NewRaftSettings(),
 	}
 
 	for _, addr := range addrs {
 		raftnode := RaftNode{node: nil, raft: nil}
-		raftsettings := RaftSettings{}
-
 		raftnode.node = node.NewNode(addr)
-		raftnode.raft = raft.NewRaft(&raftnode, &raftsettings)
+		raftnode.raft = raft.NewRaft(&raftnode, &cluster.settings)
 		raftnode.node.Register(raftnode.raft)
 
 		cluster.connected[addr] = raftnode
